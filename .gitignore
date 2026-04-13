@@ -1,0 +1,34 @@
+# --- 1. Binaries & OS (File chạy và file rác hệ thống) ---
+# File chạy sau khi build (Windows)
+*.exe
+*.dll
+*.so
+*.dylib
+
+# File chạy build ra (thường trùng tên thư mục)
+tripsync-backend
+main
+
+# File rác của Mac/Windows
+.DS_Store
+Thumbs.db
+
+# --- 2. Go Specific (File của ngôn ngữ Go) ---
+# Thư mục vendor (nếu dùng)
+vendor/
+
+# File kết quả test
+*.out
+*.test
+coverage.txt
+
+# --- 3. IDE / Editor (Cấu hình editor cá nhân, không up lên) ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- 4. Environment Variables (QUAN TRỌNG NHẤT) ---
+# Chứa pass DB, tuyệt đối chặn file này
+.env
+.env.local

@@ -1,0 +1,320 @@
+{
+  "info": {
+    "_postman_id": "tripsync-be-collection",
+    "name": "TripSync Backend API",
+    "description": "Collection test toàn bộ API của TripSync Backend (Gin + Go, port 8080)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "JWT Token - tự động lưu sau khi Login"
+    },
+    {
+      "key": "group_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "activity_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('success = true', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyen Van A\",\n  \"email\": \"vana@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Đăng ký tài khoản mới. fullName, email và password (min 6 ký tự) là bắt buộc."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "// Tự động lưu token vào biến collection",
+                  "var json = pm.response.json();",
+                  "if (json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "    console.log('✅ Token đã được lưu tự động!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vana@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Đăng nhập. Token JWT sẽ được tự động lưu vào biến {{token}} để dùng cho các request sau."
+          }
+        },
+        {
+          "name": "Get Me (Profile)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Lấy thông tin profile của user đang đăng nhập. Cần token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Groups",
+      "item": [
+        {
+          "name": "Create Group",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 hoặc 201', function() {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chuyến đi Đà Nẵng 2025\",\n  \"description\": \"Đi chơi hè năm nay với bạn bè!\",\n  \"start_date\": \"2025-08-01T00:00:00Z\",\n  \"end_date\": \"2025-08-07T00:00:00Z\",\n  \"route_destinations\": \"Hà Nội, Huế, Đà Nẵng\",\n  \"accommodation_pref\": \"HOTEL\",\n  \"expected_members\": 5,\n  \"budget_per_person\": 5000000,\n  \"currency\": \"VND\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/groups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups"]
+            },
+            "description": "Tạo nhóm mới. Tất cả các trường đều bắt buộc (gồm cả các trường AI mới)."
+          }
+        },
+        {
+          "name": "Get All Groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups"]
+            },
+            "description": "Lấy danh sách các nhóm mà user đang tham gia."
+          }
+        },
+        {
+          "name": "Get Group Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}"]
+            },
+            "description": "Lấy chi tiết một nhóm theo ID. Thay {{group_id}} bằng ID thực tế."
+          }
+        },
+        {
+          "name": "Join Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_code\": \"ABC123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/groups/join",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "join"]
+            },
+            "description": "Tham gia nhóm bằng mã mời (invite_code)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎯 Activities",
+      "item": [
+        {
+          "name": "Get Activities (by Group)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activity",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activity"]
+            },
+            "description": "Lấy danh sách hoạt động của một nhóm. Trả về vote_count và has_voted của user hiện tại."
+          }
+        },
+        {
+          "name": "Create Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Thăm Hội An\",\n  \"type\": \"ATTRACTION\",\n  \"location\": \"Phố cổ Hội An, Quảng Nam\",\n  \"description\": \"Dạo phố đèn lồng và chụp ảnh\",\n  \"start_time\": \"2025-08-03T08:00:00Z\",\n  \"end_time\": \"2025-08-03T12:00:00Z\",\n  \"lat\": 15.8801,\n  \"lng\": 108.338,\n  \"place_id\": \"ChIJxxxxxx\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activity",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activity"]
+            },
+            "description": "Tạo hoạt động mới. name, type (HOTEL/ATTRACTION/RESTAURANT/CAMPING), location, start_time, end_time là BẮT BUỘC."
+          }
+        },
+        {
+          "name": "Update Activity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Thăm Hội An (Updated)\",\n  \"type\": \"ATTRACTION\",\n  \"location\": \"Phố cổ Hội An, Quảng Nam\",\n  \"description\": \"Dạo phố và ăn cao lầu\",\n  \"start_time\": \"2025-08-03T09:00:00Z\",\n  \"end_time\": \"2025-08-03T13:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activities/{{activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activities", "{{activity_id}}"]
+            },
+            "description": "Cập nhật hoạt động. Tất cả các trường đều optional."
+          }
+        },
+        {
+          "name": "Toggle Vote Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activities/{{activity_id}}/vote",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activities", "{{activity_id}}", "vote"]
+            },
+            "description": "Vote/bỏ vote hoạt động (toggle). Trả về is_added = true/false."
+          }
+        },
+        {
+          "name": "Finalize Activity (Admin Only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activities/{{activity_id}}/finalize",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activities", "{{activity_id}}", "finalize"]
+            },
+            "description": "Chốt hoạt động vào lịch chính thức. Chỉ Admin của nhóm mới được phép."
+          }
+        },
+        {
+          "name": "Delete Activity",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/groups/{{group_id}}/activities/{{activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "groups", "{{group_id}}", "activities", "{{activity_id}}"]
+            },
+            "description": "Xóa hoạt động."
+          }
+        }
+      ]
+    }
+  ]
+}
