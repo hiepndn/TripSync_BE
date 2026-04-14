@@ -66,8 +66,8 @@ YÊU CẦU BẮT BUỘC:
 6. Lên lịch trình hợp lý cho từng ngày. PHẢI ĐẢM BẢO NGÀY NÀO CŨNG CÓ LỊCH TRÌNH từ ngày %s đến ngày %s.
 7. Nếu ngân sách đã cạn kiệt ở những ngày cuối, HÃY ĐỀ XUẤT CÁC HOẠT ĐỘNG MIỄN PHÍ (như dạo biển, ngắm hoàng hôn, tự do khám phá thành phố) để lấp đầy các ngày đó. Tuyệt đối không để trống lịch trình.
 8. Múi giờ của 'start_time' và 'end_time' PHẢI LÀ giờ Việt Nam (UTC+7), định dạng "YYYY-MM-DDTHH:mm:ss+07:00". Dữ liệu không được dùng múi giờ Z (UTC).
-9. Trường 'type' BẮT BUỘC phải là một trong 4 giá trị sau, KHÔNG ĐƯỢC để trống hoặc dùng giá trị khác: "HOTEL", "ATTRACTION", "RESTAURANT", "CAMPING". Quy tắc: lưu trú → HOTEL, ăn uống/quán ăn/nhà hàng → RESTAURANT, tham quan/vui chơi/hoạt động ngoài trời → ATTRACTION, cắm trại → CAMPING.
-10. Cần tính thời gian bắt đầu đi từ địa điểm xuất phát, phương tiện di chuyển, ước tính giá tiền. 
+9. Trường 'type' BẮT BUỘC phải là một trong 5 giá trị sau, KHÔNG ĐƯỢC để trống hoặc dùng giá trị khác: "HOTEL", "ATTRACTION", "RESTAURANT", "CAMPING", "TRANSPORT". Quy tắc: lưu trú → HOTEL, ăn uống/quán ăn/nhà hàng → RESTAURANT, tham quan/vui chơi/hoạt động ngoài trời → ATTRACTION, cắm trại → CAMPING, di chuyển/phương tiện/xe/tàu/máy bay → TRANSPORT.
+10. BẮT BUỘC phải có ít nhất 1 hoạt động type TRANSPORT vào ngày đầu tiên (%s) để mô tả hành trình di chuyển từ điểm xuất phát "%s" đến điểm đến đầu tiên. Ước tính thời gian và chi phí di chuyển thực tế (xe khách, tàu hỏa, máy bay tùy khoảng cách). Nếu hành trình có nhiều chặng, thêm TRANSPORT cho mỗi chặng di chuyển giữa các điểm đến.
 
 ĐỊNH DẠNG JSON MẪU:
 [
@@ -94,7 +94,8 @@ YÊU CẦU BẮT BUỘC:
 		totalGroupBudget, group.Currency,
 		group.ExpectedMembers, group.ExpectedMembers,
 		group.StartDate.Format("2006-01-02"),
-		group.EndDate.Format("2006-01-02"))
+		group.EndDate.Format("2006-01-02"),
+		group.StartDate.Format("2006-01-02"), group.DepartureLocation)
 
 	// Append rating context section if available
 	ratingSection := s.buildRatingContextSection(ctx)

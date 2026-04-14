@@ -15,7 +15,7 @@ type Activity struct {
 	BaseModel
 	GroupID     uint           `gorm:"not null" json:"group_id"`
 	Name        string         `gorm:"not null" json:"name"`
-	Type        string         `gorm:"not null" json:"type"` // THÊM CỘT NÀY: HOTEL / ATTRACTION / RESTAURANT / CAMPING
+	Type        string         `gorm:"not null" json:"type"` // HOTEL / ATTRACTION / RESTAURANT / CAMPING / TRANSPORT
 	Location    string         `json:"location"`
 	Description string         `json:"description"`
 	StartTime   time.Time      `json:"start_time"`

@@ -129,6 +129,12 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 		}
 
 		for _, aiAct := range aiActivities {
+			// Bỏ qua các activity có type không hợp lệ
+			validTypes := map[string]bool{"HOTEL": true, "ATTRACTION": true, "RESTAURANT": true, "CAMPING": true, "TRANSPORT": true}
+			if !validTypes[aiAct.Type] {
+				fmt.Printf("⚠️ Bỏ qua activity '%s' có type không hợp lệ: %s\n", aiAct.Name, aiAct.Type)
+				continue
+			}
 			// XỬ LÝ GỌI AGODA NẾU LÀ KHÁCH SẠN
 			if aiAct.Type == "HOTEL" {
 				tCheckIn, _ := time.Parse(time.RFC3339, aiAct.StartTime)
