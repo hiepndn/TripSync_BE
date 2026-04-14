@@ -271,3 +271,20 @@ func (c *ActivityController) GetSuggestions(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "success", "data": suggestions})
 }
+
+func (c *ActivityController) DeleteAllActivities(ctx *gin.Context) {
+	groupID, _ := strconv.Atoi(ctx.Param("id"))
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
+		return
+	}
+	userID := int(userIDVal.(float64))
+
+	if err := c.useCase.DeleteAllActivities(ctx.Request.Context(), groupID, userID); err != nil {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Đã xóa toàn bộ lịch trình"})
+}

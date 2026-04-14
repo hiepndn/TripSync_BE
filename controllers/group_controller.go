@@ -150,3 +150,91 @@ func (c *GroupController) RegenerateAI(ctx *gin.Context) {
 		"message": "Đang khởi tạo lại lịch trình bằng AI...",
 	})
 }
+
+func (gc *GroupController) UpdateGroup(c *gin.Context) {
+	idParam := c.Param("id")
+	var groupID uint
+	fmt.Sscanf(idParam, "%d", &groupID)
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Chưa đăng nhập"})
+		return
+	}
+	userID := uint(userIDVal.(float64))
+
+	var req dto.UpdateGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Dữ liệu không hợp lệ"})
+		return
+	}
+
+	updated, err := gc.groupUC.UpdateGroup(groupID, userID, req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		msg := err.Error()
+		if msg == "chỉ Admin mới có quyền chỉnh sửa thông tin nhóm" {
+			status = http.StatusForbidden
+		} else if msg == "ngày kết thúc không được trước ngày bắt đầu" {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"success": false, "error": msg})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cập nhật thành công!", "data": updated})
+}
+
+func (gc *GroupController) KickMember(c *gin.Context) {
+	idParam := c.Param("id")
+	userIDParam := c.Param("user_id")
+	var groupID, targetUserID uint
+	fmt.Sscanf(idParam, "%d", &groupID)
+	fmt.Sscanf(userIDParam, "%d", &targetUserID)
+
+	requestingIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Chưa đăng nhập"})
+		return
+	}
+	requestingID := uint(requestingIDVal.(float64))
+
+	if err := gc.groupUC.RemoveMember(groupID, targetUserID, requestingID); err != nil {
+		status := http.StatusInternalServerError
+		msg := err.Error()
+		switch msg {
+		case "không thể tự xóa chính mình khỏi nhóm":
+			status = http.StatusBadRequest
+		case "chỉ Admin mới có quyền xóa thành viên":
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"success": false, "error": msg})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Đã xóa thành viên khỏi nhóm"})
+}
+
+func (gc *GroupController) DeleteGroup(c *gin.Context) {
+	idParam := c.Param("id")
+	var groupID uint
+	fmt.Sscanf(idParam, "%d", &groupID)
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Chưa đăng nhập"})
+		return
+	}
+	userID := uint(userIDVal.(float64))
+
+	if err := gc.groupUC.DeleteGroup(groupID, userID); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "chỉ Admin mới có quyền xóa nhóm" {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Đã xóa nhóm thành công"})
+}

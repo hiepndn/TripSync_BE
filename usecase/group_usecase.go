@@ -17,6 +17,9 @@ type GroupUseCase interface {
 	JoinGroupByCode(inviteCode string, userID uint) (*models.Group, error)
 	GetGroupDetail(groupID uint, userID uint) (*models.Group, string, []models.User, error)
 	RegenerateAIActivities(groupID uint, userID uint) error
+	UpdateGroup(groupID uint, userID uint, req dto.UpdateGroupRequest) (*models.Group, error)
+	RemoveMember(groupID uint, targetUserID uint, requestingUserID uint) error
+	DeleteGroup(groupID uint, userID uint) error
 }
 
 type groupUseCase struct {
@@ -236,4 +239,34 @@ func (u *groupUseCase) GetGroupDetail(groupID uint, userID uint) (*models.Group,
 	}
 
 	return group, role, members, nil
+}
+
+func (u *groupUseCase) UpdateGroup(groupID uint, userID uint, req dto.UpdateGroupRequest) (*models.Group, error) {
+	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	if err != nil || role != "ADMIN" {
+		return nil, errors.New("chỉ Admin mới có quyền chỉnh sửa thông tin nhóm")
+	}
+	if !req.EndDate.IsZero() && !req.StartDate.IsZero() && req.EndDate.Before(req.StartDate) {
+		return nil, errors.New("ngày kết thúc không được trước ngày bắt đầu")
+	}
+	return u.groupRepo.UpdateGroup(groupID, req)
+}
+
+func (u *groupUseCase) RemoveMember(groupID uint, targetUserID uint, requestingUserID uint) error {
+	if targetUserID == requestingUserID {
+		return errors.New("không thể tự xóa chính mình khỏi nhóm")
+	}
+	role, err := u.groupRepo.GetUserRoleInGroup(groupID, requestingUserID)
+	if err != nil || role != "ADMIN" {
+		return errors.New("chỉ Admin mới có quyền xóa thành viên")
+	}
+	return u.groupRepo.RemoveMember(groupID, targetUserID)
+}
+
+func (u *groupUseCase) DeleteGroup(groupID uint, userID uint) error {
+	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	if err != nil || role != "ADMIN" {
+		return errors.New("chỉ Admin mới có quyền xóa nhóm")
+	}
+	return u.groupRepo.DeleteGroup(groupID)
 }

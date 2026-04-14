@@ -67,6 +67,7 @@ YÊU CẦU BẮT BUỘC:
 7. Nếu ngân sách đã cạn kiệt ở những ngày cuối, HÃY ĐỀ XUẤT CÁC HOẠT ĐỘNG MIỄN PHÍ (như dạo biển, ngắm hoàng hôn, tự do khám phá thành phố) để lấp đầy các ngày đó. Tuyệt đối không để trống lịch trình.
 8. Múi giờ của 'start_time' và 'end_time' PHẢI LÀ giờ Việt Nam (UTC+7), định dạng "YYYY-MM-DDTHH:mm:ss+07:00". Dữ liệu không được dùng múi giờ Z (UTC).
 9. Trường 'type' BẮT BUỘC phải là một trong 4 giá trị sau, KHÔNG ĐƯỢC để trống hoặc dùng giá trị khác: "HOTEL", "ATTRACTION", "RESTAURANT", "CAMPING". Quy tắc: lưu trú → HOTEL, ăn uống/quán ăn/nhà hàng → RESTAURANT, tham quan/vui chơi/hoạt động ngoài trời → ATTRACTION, cắm trại → CAMPING.
+10. Cần tính thời gian bắt đầu đi từ địa điểm xuất phát, phương tiện di chuyển, ước tính giá tiền. 
 
 ĐỊNH DẠNG JSON MẪU:
 [

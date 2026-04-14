@@ -16,6 +16,7 @@ type ActivityUseCase interface {
 	FinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error
 	UpdateActivity(userID, groupID, activityID int, req dto.UpdateActivityReq) error
 	DeleteActivity(userID, groupID, activityID int) error
+	DeleteAllActivities(ctx context.Context, groupID int, userID int) error
 	RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error
 	GetSuggestions(ctx context.Context, groupID int, activityType string, location string) ([]dto.SuggestionResponse, error)
 }
@@ -151,6 +152,14 @@ func (uc *activityUseCaseImpl) DeleteActivity(userID, groupID, activityID int) e
 	}
 
 	return uc.repo.Delete(activityID)
+}
+
+func (uc *activityUseCaseImpl) DeleteAllActivities(ctx context.Context, groupID int, userID int) error {
+	role, err := uc.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	if err != nil || role != "ADMIN" {
+		return errors.New("chỉ Admin mới có quyền xóa toàn bộ lịch trình")
+	}
+	return uc.repo.DeleteAllActivities(ctx, uint(groupID))
 }
 
 func (u *activityUseCaseImpl) RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error {

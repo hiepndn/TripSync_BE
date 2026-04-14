@@ -27,6 +27,9 @@ func GroupRoutes(r *gin.Engine) {
 			protected.POST("/groups/join", groupController.JoinGroup)
 			protected.GET("/groups/:id", groupController.GetDetail)
 			protected.POST("/groups/:id/regenerate-ai", groupController.RegenerateAI)
+			protected.PUT("/groups/:id", groupController.UpdateGroup)
+			protected.DELETE("/groups/:id/members/:user_id", groupController.KickMember)
+			protected.DELETE("/groups/:id", groupController.DeleteGroup)
 		}
 	}
 }

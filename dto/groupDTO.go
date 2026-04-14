@@ -2,6 +2,15 @@ package dto
 
 import "time"
 
+type UpdateGroupRequest struct {
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	StartDate         time.Time `json:"start_date"`
+	EndDate           time.Time `json:"end_date"`
+	DepartureLocation string    `json:"departure_location"`
+	RouteDestinations string    `json:"route_destinations"`
+}
+
 type CreateGroupRequest struct {
 	Name        string    `json:"name" binding:"required"`
 	Description string    `json:"description"`

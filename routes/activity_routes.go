@@ -28,6 +28,7 @@ func ActivityRoutes(r *gin.Engine) {
 			protected.PATCH("/groups/:id/activities/:activity_id/finalize", activityController.FinalizeActivity)
 			protected.PUT("/groups/:id/activities/:activity_id", activityController.UpdateActivity)
 			protected.DELETE("/groups/:id/activities/:activity_id", activityController.DeleteActivity)
+			protected.DELETE("/groups/:id/activities", activityController.DeleteAllActivities)
 			protected.POST("/groups/:id/activities/:activity_id/rate", activityController.RateActivity)
 			protected.GET("/groups/:id/activities/suggestions", activityController.GetSuggestions)
 		}

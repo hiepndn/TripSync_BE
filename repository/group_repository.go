@@ -2,6 +2,7 @@ package repository
 
 import (
 	"time"
+	"tripsync-backend/dto"
 	"tripsync-backend/models"
 
 	"gorm.io/gorm"
@@ -17,6 +18,9 @@ type GroupRepository interface {
 	GetByID(id uint) (*models.Group, error)
 	GetGroupMembers(groupID uint) ([]models.User, error)
 	UpdateAIGeneratingStatus(groupID uint, status bool) error
+	UpdateGroup(groupID uint, req dto.UpdateGroupRequest) (*models.Group, error)
+	RemoveMember(groupID uint, userID uint) error
+	DeleteGroup(groupID uint) error
 }
 
 type groupRepository struct {
@@ -117,4 +121,39 @@ func (r *groupRepository) UpdateAIGeneratingStatus(groupID uint, status bool) er
 	return r.db.Model(&models.Group{}).
 		Where("id = ?", groupID).
 		Update("is_ai_generating", status).Error
+}
+
+func (r *groupRepository) UpdateGroup(groupID uint, req dto.UpdateGroupRequest) (*models.Group, error) {
+	updates := map[string]interface{}{
+		"name":               req.Name,
+		"description":        req.Description,
+		"start_date":         req.StartDate,
+		"end_date":           req.EndDate,
+		"departure_location": req.DepartureLocation,
+		"route_destinations": req.RouteDestinations,
+	}
+	if err := r.db.Model(&models.Group{}).Where("id = ?", groupID).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	return r.GetByID(groupID)
+}
+
+func (r *groupRepository) RemoveMember(groupID uint, userID uint) error {
+	result := r.db.Where("group_id = ? AND user_id = ?", groupID, userID).Delete(&models.GroupMember{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *groupRepository) DeleteGroup(groupID uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupMember{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.Group{}, groupID).Error
+	})
 }

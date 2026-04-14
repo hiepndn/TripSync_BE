@@ -20,6 +20,7 @@ type ActivityRepository interface {
 	Update(activity *models.Activity) error
 	Delete(id int) error
 	DeletePendingAIActivities(groupID uint) error
+	DeleteAllActivities(ctx context.Context, groupID uint) error
 	UpsertRating(ctx context.Context, activityID uint, userID uint, rating int) error
 	GetRatingContext(ctx context.Context) (*dto.RatingContext, error)
 	GetSuggestions(ctx context.Context, groupID uint, activityType string, location string, routeDestinations string) ([]dto.SuggestionResponse, error)
@@ -160,6 +161,12 @@ func (r *activityRepositoryImpl) Delete(id int) error {
 func (r *activityRepositoryImpl) DeletePendingAIActivities(groupID uint) error {
 	return r.db.Unscoped().
 		Where("group_id = ? AND status = ? AND is_ai_generated = ?", groupID, "PENDING", true).
+		Delete(&models.Activity{}).Error
+}
+
+func (r *activityRepositoryImpl) DeleteAllActivities(ctx context.Context, groupID uint) error {
+	return r.db.WithContext(ctx).Unscoped().
+		Where("group_id = ?", groupID).
 		Delete(&models.Activity{}).Error
 }
 
