@@ -202,3 +202,72 @@ func (c *ActivityController) DeleteActivity(ctx *gin.Context) {
 		"message": "Xóa hoạt động thành công",
 	})
 }
+
+func (c *ActivityController) RateActivity(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group ID"})
+		return
+	}
+
+	activityIDStr := ctx.Param("activity_id")
+	activityID, err := strconv.Atoi(activityIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid activity ID"})
+		return
+	}
+
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
+		return
+	}
+	userID := int(userIDVal.(float64))
+
+	var req dto.RateActivityReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Rating must be between 1 and 5"})
+		return
+	}
+
+	if err := c.useCase.RateActivity(ctx.Request.Context(), groupID, activityID, userID, req.Rating); err != nil {
+		if err.Error() == "bạn không phải là thành viên của nhóm này" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "You are not a member of this group"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Đánh giá thành công"})
+}
+
+func (c *ActivityController) GetSuggestions(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group ID"})
+		return
+	}
+
+	activityType := ctx.Query("type")
+	location := ctx.Query("location")
+
+	suggestions, err := c.useCase.GetSuggestions(ctx.Request.Context(), groupID, activityType, location)
+	if err != nil {
+		errMsg := err.Error()
+		if errMsg == "type must be one of HOTEL, ATTRACTION, RESTAURANT, CAMPING" {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+			return
+		}
+		if errMsg == "location query parameter is required" {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "success", "data": suggestions})
+}

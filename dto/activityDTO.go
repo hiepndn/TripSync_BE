@@ -7,8 +7,10 @@ import (
 
 type ActivityResponse struct {
 	models.Activity
-	VoteCount int  `json:"vote_count"`
-	HasVoted  bool `json:"has_voted"`
+	VoteCount         int     `json:"vote_count"`
+	HasVoted          bool    `json:"has_voted"`
+	AverageUserRating float64 `json:"average_user_rating"`
+	MyRating          int     `json:"my_rating"`
 }
 type CreateActivityReq struct {
 	Name        string    `json:"name" binding:"required"`
@@ -28,4 +30,25 @@ type UpdateActivityReq struct {
 	Description string    `json:"description"`
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
+}
+
+type RateActivityReq struct {
+	Rating int `json:"rating" binding:"required,min=1,max=5"`
+}
+
+type SuggestionResponse struct {
+	models.Activity
+	AverageUserRating float64 `json:"average_user_rating"`
+}
+
+type RatingContextItem struct {
+	Name              string
+	Type              string
+	Location          string
+	AverageUserRating float64
+}
+
+type RatingContext struct {
+	HighlyRated []RatingContextItem
+	PoorlyRated []RatingContextItem
 }

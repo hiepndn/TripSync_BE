@@ -16,6 +16,8 @@ type ActivityUseCase interface {
 	FinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error
 	UpdateActivity(userID, groupID, activityID int, req dto.UpdateActivityReq) error
 	DeleteActivity(userID, groupID, activityID int) error
+	RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error
+	GetSuggestions(ctx context.Context, groupID int, activityType string, location string) ([]dto.SuggestionResponse, error)
 }
 
 type activityUseCaseImpl struct {
@@ -149,4 +151,30 @@ func (uc *activityUseCaseImpl) DeleteActivity(userID, groupID, activityID int) e
 	}
 
 	return uc.repo.Delete(activityID)
+}
+
+func (u *activityUseCaseImpl) RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error {
+	_, err := u.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	if err != nil {
+		return errors.New("bạn không phải là thành viên của nhóm này")
+	}
+	return u.repo.UpsertRating(ctx, uint(activityID), uint(userID), rating)
+}
+
+func (u *activityUseCaseImpl) GetSuggestions(ctx context.Context, groupID int, activityType string, location string) ([]dto.SuggestionResponse, error) {
+	validTypes := map[string]bool{"HOTEL": true, "ATTRACTION": true, "RESTAURANT": true, "CAMPING": true}
+	if !validTypes[activityType] {
+		return nil, errors.New("type must be one of HOTEL, ATTRACTION, RESTAURANT, CAMPING")
+	}
+	if location == "" {
+		return nil, errors.New("location query parameter is required")
+	}
+
+	// Lấy route_destinations của group hiện tại để filter các group có chung điểm đến
+	group, err := u.groupRepo.GetByID(uint(groupID))
+	if err != nil {
+		return nil, errors.New("không tìm thấy thông tin nhóm")
+	}
+
+	return u.repo.GetSuggestions(ctx, uint(groupID), activityType, location, group.RouteDestinations)
 }

@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"tripsync-backend/models"
+	"tripsync-backend/repository"
 )
 
 // GeminiActivity là struct hứng dữ liệu JSON chính xác từ Prompt trả về
@@ -29,13 +31,15 @@ type GeminiService interface {
 }
 
 type geminiServiceImpl struct {
-	apiKey string
+	apiKey  string
+	actRepo repository.ActivityRepository
 }
 
-func NewGeminiService() GeminiService {
+func NewGeminiService(actRepo repository.ActivityRepository) GeminiService {
 	// Lấy key từ biến môi trường, nhớ khai báo trong file .env nhé!
 	return &geminiServiceImpl{
-		apiKey: os.Getenv("GEMINI_API_KEY"),
+		apiKey:  os.Getenv("GEMINI_API_KEY"),
+		actRepo: actRepo,
 	}
 }
 
@@ -62,6 +66,7 @@ YÊU CẦU BẮT BUỘC:
 6. Lên lịch trình hợp lý cho từng ngày. PHẢI ĐẢM BẢO NGÀY NÀO CŨNG CÓ LỊCH TRÌNH từ ngày %s đến ngày %s.
 7. Nếu ngân sách đã cạn kiệt ở những ngày cuối, HÃY ĐỀ XUẤT CÁC HOẠT ĐỘNG MIỄN PHÍ (như dạo biển, ngắm hoàng hôn, tự do khám phá thành phố) để lấp đầy các ngày đó. Tuyệt đối không để trống lịch trình.
 8. Múi giờ của 'start_time' và 'end_time' PHẢI LÀ giờ Việt Nam (UTC+7), định dạng "YYYY-MM-DDTHH:mm:ss+07:00". Dữ liệu không được dùng múi giờ Z (UTC).
+9. Trường 'type' BẮT BUỘC phải là một trong 4 giá trị sau, KHÔNG ĐƯỢC để trống hoặc dùng giá trị khác: "HOTEL", "ATTRACTION", "RESTAURANT", "CAMPING". Quy tắc: lưu trú → HOTEL, ăn uống/quán ăn/nhà hàng → RESTAURANT, tham quan/vui chơi/hoạt động ngoài trời → ATTRACTION, cắm trại → CAMPING.
 
 ĐỊNH DẠNG JSON MẪU:
 [
@@ -89,6 +94,12 @@ YÊU CẦU BẮT BUỘC:
 		group.ExpectedMembers, group.ExpectedMembers,
 		group.StartDate.Format("2006-01-02"),
 		group.EndDate.Format("2006-01-02"))
+
+	// Append rating context section if available
+	ratingSection := s.buildRatingContextSection(ctx)
+	if ratingSection != "" {
+		prompt += "\n\n" + ratingSection
+	}
 
 	// 2. Build Payload (Sử dụng model gemini-1.5-flash cho tốc độ phản hồi nhanh)
 	requestBody, _ := json.Marshal(map[string]interface{}{
@@ -153,4 +164,39 @@ YÊU CẦU BẮT BUỘC:
 	}
 
 	return activities, nil
+}
+
+func (s *geminiServiceImpl) buildRatingContextSection(ctx context.Context) string {
+	if s.actRepo == nil {
+		return ""
+	}
+	ratingCtx, err := s.actRepo.GetRatingContext(ctx)
+	if err != nil {
+		fmt.Printf("⚠️ Không thể lấy rating context: %v\n", err)
+		return ""
+	}
+	if len(ratingCtx.HighlyRated) == 0 && len(ratingCtx.PoorlyRated) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("KINH NGHIỆM TỪ CÁC CHUYẾN ĐI TRƯỚC (dựa trên đánh giá của người dùng):\n")
+
+	if len(ratingCtx.HighlyRated) > 0 {
+		sb.WriteString("Các hoạt động được đánh giá cao (nên tham khảo):\n")
+		for _, item := range ratingCtx.HighlyRated {
+			sb.WriteString(fmt.Sprintf("- %s (type: %s, địa điểm: %s) - ⭐ %.1f/5\n",
+				item.Name, item.Type, item.Location, item.AverageUserRating))
+		}
+	}
+
+	if len(ratingCtx.PoorlyRated) > 0 {
+		sb.WriteString("Các hoạt động bị đánh giá thấp (nên tránh):\n")
+		for _, item := range ratingCtx.PoorlyRated {
+			sb.WriteString(fmt.Sprintf("- %s (type: %s, địa điểm: %s) - ⭐ %.1f/5\n",
+				item.Name, item.Type, item.Location, item.AverageUserRating))
+		}
+	}
+
+	return sb.String()
 }

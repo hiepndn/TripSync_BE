@@ -42,3 +42,11 @@ type ActivityVote struct {
 	UserID     uint   `gorm:"primaryKey" json:"user_id"`
 	VoteType   string `gorm:"default:'UP'" json:"vote_type"` // UP hoặc DOWN
 }
+
+type ActivityRating struct {
+	ActivityID uint      `gorm:"primaryKey" json:"activity_id"`
+	UserID     uint      `gorm:"primaryKey" json:"user_id"`
+	Rating     int       `gorm:"not null" json:"rating"` // 1–5
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}

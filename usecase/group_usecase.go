@@ -115,7 +115,7 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 			}
 		}()
 
-		geminiSvc := service.NewGeminiService()
+		geminiSvc := service.NewGeminiService(u.activityRepo)
 		agodaSvc := service.NewAgodaService()
 
 		fmt.Println("⏳ Đang gọi Gemini 3 Flash Preview chạy nền...")

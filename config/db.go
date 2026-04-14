@@ -45,6 +45,7 @@ func ConnectDB() {
 		&models.ExpenseSplit{},
 		&models.Activity{},
 		&models.ActivityVote{},
+		&models.ActivityRating{},
 		&models.ChecklistItem{},
 		&models.Document{},
 		// Thêm Checklist, Documents nếu bạn tạo file models tương ứng
