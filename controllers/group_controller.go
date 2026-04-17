@@ -66,7 +66,7 @@ func (gc *GroupController) GetGroups(c *gin.Context) {
 	}
 	uid := uint(userID.(float64))
 
-	groups, err := gc.groupUC.GetUserGroups(uid)
+	groups, err := gc.groupUC.GetUserGroupsWithRole(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Lỗi khi lấy danh sách nhóm"})
 		return
@@ -237,4 +237,76 @@ func (gc *GroupController) DeleteGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Đã xóa nhóm thành công"})
+}
+
+func (gc *GroupController) UpdateVisibility(c *gin.Context) {
+	idParam := c.Param("id")
+	var groupID uint
+	fmt.Sscanf(idParam, "%d", &groupID)
+
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Chưa đăng nhập"})
+		return
+	}
+	userID := uint(userIDVal.(float64))
+
+	var req dto.UpdateVisibilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Dữ liệu không hợp lệ"})
+		return
+	}
+
+	if err := gc.groupUC.UpdateVisibility(groupID, userID, req.IsPublic); err != nil {
+		msg := err.Error()
+		status := http.StatusInternalServerError
+		switch msg {
+		case "chỉ Admin mới có quyền thay đổi chế độ công khai":
+			status = http.StatusForbidden
+		case "không tìm thấy nhóm":
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"success": false, "error": msg})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cập nhật chế độ công khai thành công"})
+}
+
+func (gc *GroupController) GetPublicGroups(c *gin.Context) {
+	groups, err := gc.groupUC.GetPublicGroups()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Lỗi khi lấy danh sách nhóm công khai"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    groups,
+	})
+}
+
+func (gc *GroupController) GetPublicGroupDetail(c *gin.Context) {
+	idParam := c.Param("id")
+	var groupID uint
+	fmt.Sscanf(idParam, "%d", &groupID)
+
+	result, err := gc.groupUC.GetPublicGroupDetail(groupID)
+	if err != nil {
+		msg := err.Error()
+		switch msg {
+		case "not_found":
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Không tìm thấy nhóm"})
+		case "forbidden":
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Nhóm này không công khai"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Lỗi hệ thống"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    result,
+	})
 }

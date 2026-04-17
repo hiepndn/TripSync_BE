@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"time"
+	"tripsync-backend/models"
+)
 
 type UpdateGroupRequest struct {
 	Name              string    `json:"name"`
@@ -24,4 +27,27 @@ type CreateGroupRequest struct {
 	ExpectedMembers   int     `json:"expected_members" binding:"required,min=1"`
 	BudgetPerPerson   float64 `json:"budget_per_person" binding:"required,min=0"`
 	Currency          string  `json:"currency" binding:"required"` // VD: "VND"
+}
+
+// UpdateVisibilityRequest là body cho PUT /groups/:id/visibility
+type UpdateVisibilityRequest struct {
+	IsPublic bool `json:"is_public"`
+}
+
+type GroupWithRole struct {
+	models.Group
+	Role string `json:"role"` // ADMIN or MEMBER
+}
+
+// PublicExpenseSummary tổng hợp chi tiêu cho trang public
+type PublicExpenseSummary struct {
+	TotalAmount  float64 `json:"total_amount"`
+	ExpenseCount int     `json:"expense_count"`
+}
+
+// PublicGroupDetailResponse là response cho GET /groups/public/:id
+type PublicGroupDetailResponse struct {
+	GroupInfo      *models.Group        `json:"group_info"`
+	Activities     []models.Activity    `json:"activities"`
+	ExpenseSummary PublicExpenseSummary `json:"expense_summary"`
 }

@@ -19,6 +19,10 @@ type ActivityUseCase interface {
 	DeleteAllActivities(ctx context.Context, groupID int, userID int) error
 	RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error
 	GetSuggestions(ctx context.Context, groupID int, activityType string, location string) ([]dto.SuggestionResponse, error)
+	// Export / Import
+	ExportActivities(ctx context.Context, groupID int) ([]dto.ExportActivityItem, error)
+	ImportActivities(ctx context.Context, targetGroupID int, sourceGroupID int, userID int) (int, error)
+	ImportFromJSON(ctx context.Context, targetGroupID int, userID int, items []dto.ExportActivityItem) (int, error)
 }
 
 type activityUseCaseImpl struct {
@@ -186,4 +190,173 @@ func (u *activityUseCaseImpl) GetSuggestions(ctx context.Context, groupID int, a
 	}
 
 	return u.repo.GetSuggestions(ctx, uint(groupID), activityType, location, group.RouteDestinations)
+}
+
+// ExportActivities returns the public export payload for a group's activities.
+// No authentication is required — the caller is responsible for ensuring the group exists.
+func (u *activityUseCaseImpl) ExportActivities(ctx context.Context, groupID int) ([]dto.ExportActivityItem, error) {
+	// Verify group exists
+	_, err := u.groupRepo.GetByID(uint(groupID))
+	if err != nil {
+		return nil, errors.New("group_not_found")
+	}
+
+	activities, err := u.repo.GetRawActivitiesByGroup(ctx, uint(groupID))
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]dto.ExportActivityItem, 0, len(activities))
+	for _, a := range activities {
+		items = append(items, dto.ExportActivityItem{
+			Name:          a.Name,
+			Type:          a.Type,
+			Location:      a.Location,
+			Description:   a.Description,
+			StartTime:     a.StartTime,
+			EndTime:       a.EndTime,
+			EstimatedCost: a.EstimatedCost,
+			Currency:      a.Currency,
+			Lat:           a.Lat,
+			Lng:           a.Lng,
+		})
+	}
+	return items, nil
+}
+
+// ImportActivities copies all activities from sourceGroupID into targetGroupID.
+// The caller (userID) must be ADMIN of the target group and a member of the source group.
+// All imported activities have their times remapped to the target group's start_date.
+func (u *activityUseCaseImpl) ImportActivities(ctx context.Context, targetGroupID int, sourceGroupID int, userID int) (int, error) {
+	// Guard: self-import
+	if targetGroupID == sourceGroupID {
+		return 0, errors.New("self_import")
+	}
+
+	// Check user is ADMIN of target group
+	targetRole, err := u.groupRepo.GetUserRoleInGroup(uint(targetGroupID), uint(userID))
+	if err != nil || targetRole != "ADMIN" {
+		return 0, errors.New("not_admin_of_target")
+	}
+
+	// Check user is a member of source group
+	isMember, err := u.groupRepo.IsUserInGroup(uint(sourceGroupID), uint(userID))
+	if err != nil || !isMember {
+		return 0, errors.New("not_member_of_source")
+	}
+
+	// Fetch target group to get start_date for time remapping
+	targetGroup, err := u.groupRepo.GetByID(uint(targetGroupID))
+	if err != nil {
+		return 0, errors.New("target_group_not_found")
+	}
+
+	// Fetch source activities
+	sourceActivities, err := u.repo.GetRawActivitiesByGroup(ctx, uint(sourceGroupID))
+	if err != nil {
+		return 0, err
+	}
+
+	if len(sourceActivities) == 0 {
+		return 0, nil
+	}
+
+	// Find the earliest start_time in source activities to use as base for remapping
+	minTime := sourceActivities[0].StartTime
+	for _, src := range sourceActivities {
+		if src.StartTime.Before(minTime) {
+			minTime = src.StartTime
+		}
+	}
+	// Convert to UTC then normalize to start of day
+	minTimeUTC := minTime.UTC()
+	minDay := time.Date(minTimeUTC.Year(), minTimeUTC.Month(), minTimeUTC.Day(), 0, 0, 0, 0, time.UTC)
+	targetBase := time.Date(targetGroup.StartDate.Year(), targetGroup.StartDate.Month(), targetGroup.StartDate.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Build new activities for target group with remapped times
+	newActivities := make([]models.Activity, 0, len(sourceActivities))
+	for _, src := range sourceActivities {
+		offsetStart := src.StartTime.UTC().Sub(minDay)
+		offsetEnd := src.EndTime.UTC().Sub(minDay)
+		newActivities = append(newActivities, models.Activity{
+			GroupID:       uint(targetGroupID),
+			Name:          src.Name,
+			Type:          src.Type,
+			Location:      src.Location,
+			Description:   src.Description,
+			StartTime:     targetBase.Add(offsetStart),
+			EndTime:       targetBase.Add(offsetEnd),
+			EstimatedCost: src.EstimatedCost,
+			Currency:      src.Currency,
+			Lat:           src.Lat,
+			Lng:           src.Lng,
+			Status:        models.StatusPending,
+			IsAIGenerated: false,
+		})
+	}
+
+	if err := u.repo.BulkCreateActivities(ctx, newActivities); err != nil {
+		return 0, err
+	}
+
+	return len(newActivities), nil
+}
+
+// ImportFromJSON inserts activities from a JSON payload (ExportActivityItem slice) into the target group.
+// The caller must be ADMIN of the target group. Times are remapped to target group's start_date.
+func (u *activityUseCaseImpl) ImportFromJSON(ctx context.Context, targetGroupID int, userID int, items []dto.ExportActivityItem) (int, error) {
+	// Check user is ADMIN of target group
+	targetRole, err := u.groupRepo.GetUserRoleInGroup(uint(targetGroupID), uint(userID))
+	if err != nil || targetRole != "ADMIN" {
+		return 0, errors.New("not_admin_of_target")
+	}
+
+	// Fetch target group to get start_date for time remapping
+	targetGroup, err := u.groupRepo.GetByID(uint(targetGroupID))
+	if err != nil {
+		return 0, errors.New("target_group_not_found")
+	}
+
+	if len(items) == 0 {
+		return 0, nil
+	}
+
+	// Find the earliest start_time in JSON items to use as base for remapping
+	minTime := items[0].StartTime
+	for _, item := range items {
+		if item.StartTime.Before(minTime) {
+			minTime = item.StartTime
+		}
+	}
+	// Convert to UTC then normalize to start of day — ensures consistent offset calculation
+	minTimeUTC := minTime.UTC()
+	minDay := time.Date(minTimeUTC.Year(), minTimeUTC.Month(), minTimeUTC.Day(), 0, 0, 0, 0, time.UTC)
+	targetBase := time.Date(targetGroup.StartDate.Year(), targetGroup.StartDate.Month(), targetGroup.StartDate.Day(), 0, 0, 0, 0, time.UTC)
+
+	newActivities := make([]models.Activity, 0, len(items))
+	for _, item := range items {
+		offsetStart := item.StartTime.UTC().Sub(minDay)
+		offsetEnd := item.EndTime.UTC().Sub(minDay)
+		newActivities = append(newActivities, models.Activity{
+			GroupID:       uint(targetGroupID),
+			Name:          item.Name,
+			Type:          item.Type,
+			Location:      item.Location,
+			Description:   item.Description,
+			StartTime:     targetBase.Add(offsetStart),
+			EndTime:       targetBase.Add(offsetEnd),
+			EstimatedCost: item.EstimatedCost,
+			Currency:      item.Currency,
+			Lat:           item.Lat,
+			Lng:           item.Lng,
+			Status:        models.StatusPending,
+			IsAIGenerated: false,
+		})
+	}
+
+	if err := u.repo.BulkCreateActivities(ctx, newActivities); err != nil {
+		return 0, err
+	}
+
+	return len(newActivities), nil
 }

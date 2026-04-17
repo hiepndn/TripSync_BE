@@ -288,3 +288,119 @@ func (c *ActivityController) DeleteAllActivities(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Đã xóa toàn bộ lịch trình"})
 }
+
+// ExportActivities handles GET /api/groups/:id/export (public, no auth required).
+// Returns the group's activities as an export payload without internal fields.
+func (c *ActivityController) ExportActivities(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID nhóm không hợp lệ"})
+		return
+	}
+
+	items, err := c.useCase.ExportActivities(ctx.Request.Context(), groupID)
+	if err != nil {
+		if err.Error() == "group_not_found" {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Nhóm không tồn tại"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"activities": items,
+		},
+	})
+}
+
+// ImportActivities handles POST /api/groups/:id/import (protected, auth required).
+// Copies activities from source group into the target group (:id), remapping times to target start_date.
+func (c *ActivityController) ImportActivities(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	targetGroupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID nhóm không hợp lệ"})
+		return
+	}
+
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
+		return
+	}
+	userID := int(userIDVal.(float64))
+
+	var req dto.ImportActivitiesReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ: " + err.Error()})
+		return
+	}
+
+	count, err := c.useCase.ImportActivities(ctx.Request.Context(), targetGroupID, req.SourceGroupID, userID)
+	if err != nil {
+		switch err.Error() {
+		case "self_import":
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Không thể import từ chính nhóm này"})
+		case "not_admin_of_target":
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "Bạn không phải Admin của nhóm đích"})
+		case "not_member_of_source":
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "Bạn không phải thành viên của nhóm nguồn"})
+		case "target_group_not_found":
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Nhóm đích không tồn tại"})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":        "Import thành công",
+		"imported_count": count,
+	})
+}
+
+// ImportFromJSON handles POST /api/groups/:id/import-json (protected).
+// Accepts a JSON body with an "activities" array (same format as export output).
+func (c *ActivityController) ImportFromJSON(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	targetGroupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID nhóm không hợp lệ"})
+		return
+	}
+
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
+		return
+	}
+	userID := int(userIDVal.(float64))
+
+	var req dto.ImportFromJSONReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ: " + err.Error()})
+		return
+	}
+
+	count, err := c.useCase.ImportFromJSON(ctx.Request.Context(), targetGroupID, userID, req.Activities)
+	if err != nil {
+		switch err.Error() {
+		case "not_admin_of_target":
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "Bạn không phải Admin của nhóm đích"})
+		case "target_group_not_found":
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Nhóm đích không tồn tại"})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":        "Import từ file thành công",
+		"imported_count": count,
+	})
+}

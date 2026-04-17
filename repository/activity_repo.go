@@ -24,6 +24,9 @@ type ActivityRepository interface {
 	UpsertRating(ctx context.Context, activityID uint, userID uint, rating int) error
 	GetRatingContext(ctx context.Context) (*dto.RatingContext, error)
 	GetSuggestions(ctx context.Context, groupID uint, activityType string, location string, routeDestinations string) ([]dto.SuggestionResponse, error)
+	// Export / Import
+	GetRawActivitiesByGroup(ctx context.Context, groupID uint) ([]models.Activity, error)
+	BulkCreateActivities(ctx context.Context, activities []models.Activity) error
 }
 
 type activityRepositoryImpl struct {
@@ -159,8 +162,10 @@ func (r *activityRepositoryImpl) Delete(id int) error {
 }
 
 func (r *activityRepositoryImpl) DeletePendingAIActivities(groupID uint) error {
+	// Xóa TẤT CẢ activities PENDING (bao gồm cả import, manual, AI)
+	// Chỉ giữ lại các activity đã được APPROVED
 	return r.db.Unscoped().
-		Where("group_id = ? AND status = ? AND is_ai_generated = ?", groupID, "PENDING", true).
+		Where("group_id = ? AND status = ?", groupID, "PENDING").
 		Delete(&models.Activity{}).Error
 }
 
@@ -304,4 +309,24 @@ func (r *activityRepositoryImpl) GetSuggestions(ctx context.Context, groupID uin
 	}
 
 	return ratedResults, nil
+}
+
+// GetRawActivitiesByGroup returns all activities for a group without user-specific fields.
+// Used by the export endpoint.
+func (r *activityRepositoryImpl) GetRawActivitiesByGroup(ctx context.Context, groupID uint) ([]models.Activity, error) {
+	var activities []models.Activity
+	err := r.db.WithContext(ctx).
+		Where("group_id = ? AND deleted_at IS NULL", groupID).
+		Order("start_time ASC").
+		Find(&activities).Error
+	return activities, err
+}
+
+// BulkCreateActivities inserts multiple activities in a single transaction.
+// Used by the import endpoint.
+func (r *activityRepositoryImpl) BulkCreateActivities(ctx context.Context, activities []models.Activity) error {
+	if len(activities) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&activities).Error
 }

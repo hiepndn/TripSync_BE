@@ -52,3 +52,28 @@ type RatingContext struct {
 	HighlyRated []RatingContextItem
 	PoorlyRated []RatingContextItem
 }
+
+// ExportActivityItem is the public export payload for a single activity.
+// Internal fields (id, group_id, created_by, is_ai_generated, votes, ratings) are intentionally excluded.
+type ExportActivityItem struct {
+	Name          string    `json:"name"`
+	Type          string    `json:"type"`
+	Location      string    `json:"location"`
+	Description   string    `json:"description"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	Currency      string    `json:"currency"`
+	Lat           float64   `json:"lat"`
+	Lng           float64   `json:"lng"`
+}
+
+// ImportActivitiesReq is the request body for the import endpoint.
+type ImportActivitiesReq struct {
+	SourceGroupID int `json:"source_group_id" binding:"required"`
+}
+
+// ImportFromJSONReq is the request body for the import-from-json endpoint.
+type ImportFromJSONReq struct {
+	Activities []ExportActivityItem `json:"activities" binding:"required"`
+}

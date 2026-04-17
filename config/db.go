@@ -48,7 +48,7 @@ func ConnectDB() {
 		&models.ActivityRating{},
 		&models.ChecklistItem{},
 		&models.Document{},
-		// Thêm Checklist, Documents nếu bạn tạo file models tương ứng
+		&models.GroupFavorite{},
 	)
 
 	if err != nil {

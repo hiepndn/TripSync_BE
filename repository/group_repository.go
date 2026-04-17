@@ -11,6 +11,7 @@ import (
 type GroupRepository interface {
 	CreateGroupWithAdmin(group *models.Group, adminID uint) error
 	GetGroupsByUserID(userID uint) ([]models.Group, error)
+	GetGroupsByUserIDWithRole(userID uint) ([]dto.GroupWithRole, error)
 	GetGroupByInviteCode(code string) (*models.Group, error)
 	IsUserInGroup(groupID uint, userID uint) (bool, error)
 	AddMember(member *models.GroupMember) error
@@ -21,6 +22,9 @@ type GroupRepository interface {
 	UpdateGroup(groupID uint, req dto.UpdateGroupRequest) (*models.Group, error)
 	RemoveMember(groupID uint, userID uint) error
 	DeleteGroup(groupID uint) error
+	UpdateVisibility(groupID uint, isPublic bool) error
+	GetPublicGroups() ([]models.Group, error)
+	GetPublicGroupDetail(groupID uint) (*models.Group, error)
 }
 
 type groupRepository struct {
@@ -59,11 +63,20 @@ func (r *groupRepository) CreateGroupWithAdmin(group *models.Group, adminID uint
 
 func (r *groupRepository) GetGroupsByUserID(userID uint) ([]models.Group, error) {
 	var groups []models.Group
-	// Dùng JOIN để lấy các nhóm mà user này là thành viên
 	err := r.db.Joins("JOIN group_members ON group_members.group_id = groups.id").
 		Where("group_members.user_id = ?", userID).
 		Find(&groups).Error
 	return groups, err
+}
+
+func (r *groupRepository) GetGroupsByUserIDWithRole(userID uint) ([]dto.GroupWithRole, error) {
+	var results []dto.GroupWithRole
+	err := r.db.Table("groups").
+		Select("groups.*, group_members.role").
+		Joins("JOIN group_members ON group_members.group_id = groups.id").
+		Where("group_members.user_id = ? AND groups.deleted_at IS NULL", userID).
+		Scan(&results).Error
+	return results, err
 }
 
 func (r *groupRepository) GetGroupByInviteCode(code string) (*models.Group, error) {
@@ -156,4 +169,25 @@ func (r *groupRepository) DeleteGroup(groupID uint) error {
 		}
 		return tx.Delete(&models.Group{}, groupID).Error
 	})
+}
+
+func (r *groupRepository) UpdateVisibility(groupID uint, isPublic bool) error {
+	return r.db.Model(&models.Group{}).
+		Where("id = ?", groupID).
+		Update("is_public", isPublic).Error
+}
+
+func (r *groupRepository) GetPublicGroups() ([]models.Group, error) {
+	var groups []models.Group
+	err := r.db.Where("is_public = ?", true).Find(&groups).Error
+	return groups, err
+}
+
+func (r *groupRepository) GetPublicGroupDetail(groupID uint) (*models.Group, error) {
+	var group models.Group
+	err := r.db.Where("id = ? AND is_public = ?", groupID, true).First(&group).Error
+	if err != nil {
+		return nil, err
+	}
+	return &group, nil
 }

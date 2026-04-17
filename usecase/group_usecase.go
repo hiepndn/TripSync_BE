@@ -14,23 +14,29 @@ import (
 type GroupUseCase interface {
 	CreateGroup(req dto.CreateGroupRequest, userID uint) (*models.Group, error)
 	GetUserGroups(userID uint) ([]models.Group, error)
+	GetUserGroupsWithRole(userID uint) ([]dto.GroupWithRole, error)
 	JoinGroupByCode(inviteCode string, userID uint) (*models.Group, error)
 	GetGroupDetail(groupID uint, userID uint) (*models.Group, string, []models.User, error)
 	RegenerateAIActivities(groupID uint, userID uint) error
 	UpdateGroup(groupID uint, userID uint, req dto.UpdateGroupRequest) (*models.Group, error)
 	RemoveMember(groupID uint, targetUserID uint, requestingUserID uint) error
 	DeleteGroup(groupID uint, userID uint) error
+	UpdateVisibility(groupID uint, userID uint, isPublic bool) error
+	GetPublicGroups() ([]models.Group, error)
+	GetPublicGroupDetail(groupID uint) (*dto.PublicGroupDetailResponse, error)
 }
 
 type groupUseCase struct {
 	groupRepo    repository.GroupRepository
 	activityRepo repository.ActivityRepository
+	expenseRepo  repository.ExpenseRepository
 }
 
-func NewGroupUseCase(groupRepo repository.GroupRepository, activityRepo repository.ActivityRepository) GroupUseCase {
+func NewGroupUseCase(groupRepo repository.GroupRepository, activityRepo repository.ActivityRepository, expenseRepo repository.ExpenseRepository) GroupUseCase {
 	return &groupUseCase{
 		groupRepo:    groupRepo,
 		activityRepo: activityRepo,
+		expenseRepo:  expenseRepo,
 	}
 }
 
@@ -194,6 +200,10 @@ func (u *groupUseCase) GetUserGroups(userID uint) ([]models.Group, error) {
 	return u.groupRepo.GetGroupsByUserID(userID)
 }
 
+func (u *groupUseCase) GetUserGroupsWithRole(userID uint) ([]dto.GroupWithRole, error) {
+	return u.groupRepo.GetGroupsByUserIDWithRole(userID)
+}
+
 func (u *groupUseCase) JoinGroupByCode(inviteCode string, userID uint) (*models.Group, error) {
 	// 1. Tìm nhóm theo Invite Code
 	group, err := u.groupRepo.GetGroupByInviteCode(inviteCode)
@@ -275,4 +285,70 @@ func (u *groupUseCase) DeleteGroup(groupID uint, userID uint) error {
 		return errors.New("chỉ Admin mới có quyền xóa nhóm")
 	}
 	return u.groupRepo.DeleteGroup(groupID)
+}
+
+func (u *groupUseCase) UpdateVisibility(groupID uint, userID uint, isPublic bool) error {
+	// Kiểm tra group tồn tại
+	_, err := u.groupRepo.GetByID(groupID)
+	if err != nil {
+		return errors.New("không tìm thấy nhóm")
+	}
+
+	// Chỉ ADMIN mới được thay đổi visibility
+	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	if err != nil || role != "ADMIN" {
+		return errors.New("chỉ Admin mới có quyền thay đổi chế độ công khai")
+	}
+
+	return u.groupRepo.UpdateVisibility(groupID, isPublic)
+}
+
+func (u *groupUseCase) GetPublicGroups() ([]models.Group, error) {
+	return u.groupRepo.GetPublicGroups()
+}
+
+func (u *groupUseCase) GetPublicGroupDetail(groupID uint) (*dto.PublicGroupDetailResponse, error) {
+	// Lấy group, chỉ trả về nếu is_public = true
+	group, err := u.groupRepo.GetPublicGroupDetail(groupID)
+	if err != nil {
+		// Kiểm tra xem group có tồn tại không (nhưng private)
+		_, existErr := u.groupRepo.GetByID(groupID)
+		if existErr != nil {
+			return nil, errors.New("not_found")
+		}
+		return nil, errors.New("forbidden")
+	}
+
+	// Lấy danh sách activities
+	ctx := context.Background()
+	activities, err := u.activityRepo.GetActivitiesByGroup(ctx, int(groupID), 0)
+	if err != nil {
+		activities = nil
+	}
+
+	// Chuyển đổi ActivityResponse sang Activity để trả về
+	var activityModels []models.Activity
+	for _, a := range activities {
+		activityModels = append(activityModels, a.Activity)
+	}
+
+	// Tính expense summary
+	expenses, _, err := u.expenseRepo.GetAllByGroup(groupID)
+	var totalAmount float64
+	expenseCount := 0
+	if err == nil {
+		for _, exp := range expenses {
+			totalAmount += exp.Amount
+			expenseCount++
+		}
+	}
+
+	return &dto.PublicGroupDetailResponse{
+		GroupInfo:  group,
+		Activities: activityModels,
+		ExpenseSummary: dto.PublicExpenseSummary{
+			TotalAmount:  totalAmount,
+			ExpenseCount: expenseCount,
+		},
+	}, nil
 }

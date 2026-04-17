@@ -19,6 +19,9 @@ func ActivityRoutes(r *gin.Engine) {
 	// Khai báo Routes
 	api := r.Group("/api")
 	{
+		// Public routes (no auth required)
+		api.GET("/groups/:id/export", activityController.ExportActivities)
+
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{
@@ -31,6 +34,8 @@ func ActivityRoutes(r *gin.Engine) {
 			protected.DELETE("/groups/:id/activities", activityController.DeleteAllActivities)
 			protected.POST("/groups/:id/activities/:activity_id/rate", activityController.RateActivity)
 			protected.GET("/groups/:id/activities/suggestions", activityController.GetSuggestions)
+			protected.POST("/groups/:id/import", activityController.ImportActivities)
+			protected.POST("/groups/:id/import-json", activityController.ImportFromJSON)
 		}
 	}
 }
