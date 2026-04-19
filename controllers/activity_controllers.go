@@ -122,39 +122,49 @@ func (c *ActivityController) ToggleVote(ctx *gin.Context) {
 }
 
 func (c *ActivityController) FinalizeActivity(ctx *gin.Context) {
-	// 1. Lấy thông tin từ URL
 	groupIDStr := ctx.Param("id")
 	groupID, _ := strconv.Atoi(groupIDStr)
-
 	activityIDStr := ctx.Param("activity_id")
 	activityID, _ := strconv.Atoi(activityIDStr)
-
-	// 2. Lấy UserID từ Token (Middleware Auth)
 	userIDVal, exists := ctx.Get("user_id")
 	if !exists {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
 		return
 	}
 	userID := int(userIDVal.(float64))
-
-	// 3. Gọi UseCase thực thi
 	err := c.useCase.FinalizeActivity(ctx.Request.Context(), uint(groupID), uint(activityID), uint(userID))
 	if err != nil {
-		// Trả về lỗi 403 Forbidden nếu không phải Admin
 		if err.Error() == "chỉ Admin mới có quyền chốt hoạt động vào lịch chính thức" {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
-		// Trả về 500 cho các lỗi DB khác
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
 		return
 	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Đã chốt hoạt động vào lịch chính thức", "status": "APPROVED"})
+}
 
-	// 4. Trả về thành công
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": "Đã chốt hoạt động vào lịch chính thức",
-		"status":  "APPROVED",
-	})
+func (c *ActivityController) UnfinalizeActivity(ctx *gin.Context) {
+	groupIDStr := ctx.Param("id")
+	groupID, _ := strconv.Atoi(groupIDStr)
+	activityIDStr := ctx.Param("activity_id")
+	activityID, _ := strconv.Atoi(activityIDStr)
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin user"})
+		return
+	}
+	userID := int(userIDVal.(float64))
+	err := c.useCase.UnfinalizeActivity(ctx.Request.Context(), uint(groupID), uint(activityID), uint(userID))
+	if err != nil {
+		if err.Error() == "chỉ Admin mới có quyền hủy chốt hoạt động" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Đã hủy chốt hoạt động", "status": "PENDING"})
 }
 
 func (c *ActivityController) UpdateActivity(ctx *gin.Context) {

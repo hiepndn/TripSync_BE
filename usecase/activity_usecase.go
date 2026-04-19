@@ -14,6 +14,7 @@ type ActivityUseCase interface {
 	CreateActivity(ctx context.Context, groupID int, userID int, req dto.CreateActivityReq) error
 	ToggleActivityVote(ctx context.Context, activityID int, userID int) (bool, error)
 	FinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error
+	UnfinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error
 	UpdateActivity(userID, groupID, activityID int, req dto.UpdateActivityReq) error
 	DeleteActivity(userID, groupID, activityID int) error
 	DeleteAllActivities(ctx context.Context, groupID int, userID int) error
@@ -105,19 +106,25 @@ func (u *activityUseCaseImpl) ToggleActivityVote(ctx context.Context, activityID
 }
 
 func (u *activityUseCaseImpl) FinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error {
-	// 1. Dùng chính hàm bạn vừa cung cấp để check role
 	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
 	if err != nil {
 		return errors.New("bạn không phải là thành viên của nhóm này")
 	}
-
-	// 2. Chặn đứng nếu không phải ADMIN
-	if role != "ADMIN" { // models.RoleAdmin nếu bạn dùng hằng số
+	if role != "ADMIN" {
 		return errors.New("chỉ Admin mới có quyền chốt hoạt động vào lịch chính thức")
 	}
-
-	// 3. Nếu qua ải Admin, gọi Repo đổi status sang APPROVED
 	return u.repo.UpdateStatus(ctx, activityID, "APPROVED")
+}
+
+func (u *activityUseCaseImpl) UnfinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error {
+	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	if err != nil {
+		return errors.New("bạn không phải là thành viên của nhóm này")
+	}
+	if role != "ADMIN" {
+		return errors.New("chỉ Admin mới có quyền hủy chốt hoạt động")
+	}
+	return u.repo.UpdateStatus(ctx, activityID, "PENDING")
 }
 
 func (uc *activityUseCaseImpl) UpdateActivity(userID, groupID, activityID int, req dto.UpdateActivityReq) error {

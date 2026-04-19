@@ -33,6 +33,7 @@ func ActivityRoutes(r *gin.Engine) {
 				groupRoutes.POST("/activity", activityController.CreateActivity)
 				groupRoutes.POST("/activities/:activity_id/vote", activityController.ToggleVote)
 				groupRoutes.PATCH("/activities/:activity_id/finalize", activityController.FinalizeActivity)
+				groupRoutes.PATCH("/activities/:activity_id/unfinalize", activityController.UnfinalizeActivity)
 				groupRoutes.PUT("/activities/:activity_id", activityController.UpdateActivity)
 				groupRoutes.DELETE("/activities/:activity_id", activityController.DeleteActivity)
 				groupRoutes.DELETE("/activities", activityController.DeleteAllActivities)
