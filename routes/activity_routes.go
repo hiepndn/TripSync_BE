@@ -25,17 +25,22 @@ func ActivityRoutes(r *gin.Engine) {
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.GET("/groups/:id/activity", activityController.GetActivities)
-			protected.POST("/groups/:id/activity", activityController.CreateActivity)
-			protected.POST("/groups/:id/activities/:activity_id/vote", activityController.ToggleVote)
-			protected.PATCH("/groups/:id/activities/:activity_id/finalize", activityController.FinalizeActivity)
-			protected.PUT("/groups/:id/activities/:activity_id", activityController.UpdateActivity)
-			protected.DELETE("/groups/:id/activities/:activity_id", activityController.DeleteActivity)
-			protected.DELETE("/groups/:id/activities", activityController.DeleteAllActivities)
-			protected.POST("/groups/:id/activities/:activity_id/rate", activityController.RateActivity)
-			protected.GET("/groups/:id/activities/suggestions", activityController.GetSuggestions)
-			protected.POST("/groups/:id/import", activityController.ImportActivities)
-			protected.POST("/groups/:id/import-json", activityController.ImportFromJSON)
+			// Routes yêu cầu phải là thành viên của nhóm
+			groupRoutes := protected.Group("/groups/:id")
+			groupRoutes.Use(middleware.GroupMembershipMiddleware(groupRepo))
+			{
+				groupRoutes.GET("/activity", activityController.GetActivities)
+				groupRoutes.POST("/activity", activityController.CreateActivity)
+				groupRoutes.POST("/activities/:activity_id/vote", activityController.ToggleVote)
+				groupRoutes.PATCH("/activities/:activity_id/finalize", activityController.FinalizeActivity)
+				groupRoutes.PUT("/activities/:activity_id", activityController.UpdateActivity)
+				groupRoutes.DELETE("/activities/:activity_id", activityController.DeleteActivity)
+				groupRoutes.DELETE("/activities", activityController.DeleteAllActivities)
+				groupRoutes.POST("/activities/:activity_id/rate", activityController.RateActivity)
+				groupRoutes.GET("/activities/suggestions", activityController.GetSuggestions)
+				groupRoutes.POST("/import", activityController.ImportActivities)
+				groupRoutes.POST("/import-json", activityController.ImportFromJSON)
+			}
 		}
 	}
 }

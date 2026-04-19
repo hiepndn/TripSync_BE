@@ -14,18 +14,22 @@ func ExpenseRoutes(r *gin.Engine) {
 	expenseRepo := repository.NewExpenseRepository(config.DB)
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo)
 	expenseController := controllers.NewExpenseController(expenseUC)
+	groupRepo := repository.NewGroupRepository(config.DB)
 
 	api := r.Group("/api")
 	{
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.POST("/groups/:id/expenses", expenseController.CreateExpense)
-			protected.GET("/groups/:id/expenses", expenseController.GetExpenseList)
-			protected.GET("/groups/:id/debts", expenseController.GetOptimalDebts)
-			protected.POST("/groups/:id/debts/settle", expenseController.SettleDebt)
-			protected.GET("/groups/:id/expenses/summary", expenseController.GetExpenseSummary)
+			groupRoutes := protected.Group("/groups/:id")
+			groupRoutes.Use(middleware.GroupMembershipMiddleware(groupRepo))
+			{
+				groupRoutes.POST("/expenses", expenseController.CreateExpense)
+				groupRoutes.GET("/expenses", expenseController.GetExpenseList)
+				groupRoutes.GET("/debts", expenseController.GetOptimalDebts)
+				groupRoutes.POST("/debts/settle", expenseController.SettleDebt)
+				groupRoutes.GET("/expenses/summary", expenseController.GetExpenseSummary)
+			}
 		}
 	}
-
 }

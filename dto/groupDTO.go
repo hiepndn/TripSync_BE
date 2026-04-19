@@ -34,9 +34,18 @@ type UpdateVisibilityRequest struct {
 	IsPublic bool `json:"is_public"`
 }
 
+// MemberPreview là thông tin tóm tắt của 1 thành viên để hiển thị avatar
+type MemberPreview struct {
+	ID       uint   `json:"id"`
+	FullName string `json:"full_name"`
+	Avatar   string `json:"avatar"`
+}
+
 type GroupWithRole struct {
 	models.Group
-	Role string `json:"role"` // ADMIN or MEMBER
+	Role           string          `json:"role"` // ADMIN or MEMBER
+	MemberCount    int             `json:"member_count"`
+	MemberPreviews []MemberPreview `json:"member_previews"` // tối đa 3 người đầu
 }
 
 // PublicExpenseSummary tổng hợp chi tiêu cho trang public

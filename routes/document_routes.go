@@ -21,9 +21,13 @@ func DocumentRoutes(r *gin.Engine) {
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.GET("/groups/:id/documents", docController.GetDocuments)
-			protected.POST("/groups/:id/documents", docController.CreateDocument)
-			protected.DELETE("/groups/:id/documents/:doc_id", docController.DeleteDocument)
+			groupRoutes := protected.Group("/groups/:id")
+			groupRoutes.Use(middleware.GroupMembershipMiddleware(groupRepo))
+			{
+				groupRoutes.GET("/documents", docController.GetDocuments)
+				groupRoutes.POST("/documents", docController.CreateDocument)
+				groupRoutes.DELETE("/documents/:doc_id", docController.DeleteDocument)
+			}
 		}
 	}
 }

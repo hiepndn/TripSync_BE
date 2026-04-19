@@ -13,10 +13,12 @@ import (
 func ChecklistRoutes(r *gin.Engine) {
 	checkRepo := repository.NewChecklistRepository(config.DB)
 	checkUC := usecase.NewChecklistUseCase(checkRepo)
+	groupRepo := repository.NewGroupRepository(config.DB)
 
 	checkController := controllers.NewChecklistController(checkUC)
 	checklistGroup := r.Group("/api/groups/:id/checklist")
 	checklistGroup.Use(middleware.AuthMiddleware())
+	checklistGroup.Use(middleware.GroupMembershipMiddleware(groupRepo))
 	{
 		checklistGroup.POST("/", checkController.CreateItem)
 		checklistGroup.GET("/", checkController.GetItems)

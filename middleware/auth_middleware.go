@@ -28,6 +28,9 @@ func AuthMiddleware() gin.HandlerFunc {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			// Lưu user_id vào context để các hàm sau sử dụng
 			c.Set("user_id", claims["user_id"])
+			if role, ok := claims["role"]; ok {
+				c.Set("role", role)
+			}
 			c.Next()
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token không hợp lệ hoặc đã hết hạn"})

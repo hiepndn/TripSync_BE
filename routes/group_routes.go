@@ -31,19 +31,24 @@ func GroupRoutes(r *gin.Engine) {
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{
+			// Routes không cần check membership
 			protected.POST("/groups", groupController.CreateGroup)
 			protected.GET("/groups", groupController.GetGroups)
 			protected.POST("/groups/join", groupController.JoinGroup)
-			protected.GET("/groups/:id", groupController.GetDetail)
-			protected.POST("/groups/:id/regenerate-ai", groupController.RegenerateAI)
-			protected.PUT("/groups/:id", groupController.UpdateGroup)
-			protected.PUT("/groups/:id/visibility", groupController.UpdateVisibility)
-			protected.DELETE("/groups/:id/members/:user_id", groupController.KickMember)
-			protected.DELETE("/groups/:id", groupController.DeleteGroup)
-
-			// Favorites
-			protected.POST("/groups/:id/favorite", favoriteController.ToggleFavorite)
 			protected.GET("/favorites", favoriteController.GetFavorites)
+
+			// Routes yêu cầu phải là thành viên của nhóm
+			groupRoutes := protected.Group("/groups/:id")
+			groupRoutes.Use(middleware.GroupMembershipMiddleware(groupRepo))
+			{
+				groupRoutes.GET("", groupController.GetDetail)
+				groupRoutes.POST("/regenerate-ai", groupController.RegenerateAI)
+				groupRoutes.PUT("", groupController.UpdateGroup)
+				groupRoutes.PUT("/visibility", groupController.UpdateVisibility)
+				groupRoutes.DELETE("/members/:user_id", groupController.KickMember)
+				groupRoutes.DELETE("", groupController.DeleteGroup)
+				groupRoutes.POST("/favorite", favoriteController.ToggleFavorite)
+			}
 		}
 	}
 }

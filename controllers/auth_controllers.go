@@ -28,6 +28,29 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required,min=6"`
 }
 
+type UpdateProfileRequest struct {
+	FullName  string `json:"fullName"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+type ChangePasswordRequest struct {
+	OldPassword string `json:"oldPassword" binding:"required,min=6"`
+	NewPassword string `json:"newPassword" binding:"required,min=6"`
+}
+
+// helper: lấy userID từ context do JWT Middleware set
+func getUserIDFromContext(c *gin.Context) (uint, bool) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		return 0, false
+	}
+	floatID, ok := userIDVal.(float64)
+	if !ok {
+		return 0, false
+	}
+	return uint(floatID), true
+}
+
 // Login là hàm xử lý chính cho endpoint /api/auth/login
 func (ac *AuthController) Login(c *gin.Context) {
 	var req LoginRequest
@@ -93,32 +116,72 @@ func (ac *AuthController) Register(c *gin.Context) {
 }
 
 func (ac *AuthController) GetMe(c *gin.Context) {
-	// Giả sử Middleware JWT của bác đã nhét userID vào context với key là "userID"
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
+	userID, ok := getUserIDFromContext(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không tìm thấy thông tin xác thực"})
 		return
 	}
 
-	var userID uint
-	if floatID, ok := userIDVal.(float64); ok {
-		userID = uint(floatID)
-	} else {
-		// Đề phòng trường hợp lúc tạo token bác set user_id là string
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi định dạng ID người dùng trong token"})
-		return
-	}
-
-	// Gọi UseCase
 	user, err := ac.authUC.GetProfile(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Trả về Frontend
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Thành công",
 		"data":    user,
+	})
+}
+
+// UpdateProfile xử lý PUT /api/auth/me
+func (ac *AuthController) UpdateProfile(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không xác định được người dùng"})
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ"})
+		return
+	}
+
+	updatedUser, err := ac.authUC.UpdateProfile(userID, req.FullName, req.AvatarURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Cập nhật hồ sơ thành công!",
+		"data":    updatedUser,
+	})
+}
+
+// ChangePassword xử lý PUT /api/auth/me/password
+func (ac *AuthController) ChangePassword(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không xác định được người dùng"})
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Vui lòng nhập đủ mật khẩu cũ và mật khẩu mới (tối thiểu 6 ký tự)"})
+		return
+	}
+
+	if err := ac.authUC.ChangePassword(userID, req.OldPassword, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Đổi mật khẩu thành công!",
 	})
 }

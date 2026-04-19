@@ -114,13 +114,12 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 	go func(group *models.Group) {
 		ctx := context.Background()
 
-		// DEFER: Luôn TẮT CỜ khi kết thúc
+		// DEFER: Bắt panic bất ngờ để không crash server
 		defer func() {
-			err := u.groupRepo.UpdateAIGeneratingStatus(group.ID, false)
-			if err != nil {
-				fmt.Printf("Lỗi khi tắt cờ AI cho nhóm %d: %v\n", group.ID, err)
-			} else {
-				fmt.Printf("✅ Đã tắt cờ IsAIGenerating cho nhóm %d\n", group.ID)
+			if r := recover(); r != nil {
+				errMsg := fmt.Sprintf("Lỗi nội bộ hệ thống AI: %v", r)
+				fmt.Printf("🔥 Panic trong goroutine AI nhóm %d: %v\n", group.ID, r)
+				_ = u.groupRepo.SetAIError(group.ID, errMsg)
 			}
 		}()
 
@@ -131,6 +130,8 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 		aiActivities, err := geminiSvc.GenerateItinerary(ctx, group)
 		if err != nil {
 			fmt.Println("❌ Lỗi gọi Gemini:", err)
+			// Lưu lỗi vào DB và tắt cờ loading để FE detect qua polling
+			_ = u.groupRepo.SetAIError(group.ID, "AI gặp sự cố khi tạo lịch trình. Vui lòng thử lại sau.")
 			return
 		}
 
@@ -192,6 +193,11 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 			_ = u.activityRepo.Create(ctx, normalActivity)
 		}
 
+		// ✅ Thành công: tắt cờ loading, đảm bảo ai_error trống
+		if err := u.groupRepo.UpdateAIGeneratingStatus(group.ID, false); err != nil {
+			fmt.Printf("Lỗi khi tắt cờ AI cho nhóm %d: %v\n", group.ID, err)
+		}
+		fmt.Printf("✅ Đã tắt cờ IsAIGenerating cho nhóm %d\n", group.ID)
 		fmt.Println("🎉 Đã lưu toàn bộ lịch trình AI và khách sạn vào Database!")
 	}(g)
 }

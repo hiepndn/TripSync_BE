@@ -28,6 +28,7 @@ type Group struct {
 	BudgetPerPerson   float64 `gorm:"column:budget_per_person;type:decimal(10,2)" json:"budget_per_person"`
 	Currency          string  `gorm:"column:currency" json:"currency"`
 	IsAIGenerating    bool    `gorm:"column:is_ai_generating;default:false" json:"is_ai_generating"`
+	AIError           string  `gorm:"column:ai_error;default:''" json:"ai_error"`
 
 	// Quan hệ
 	Members    []User          `gorm:"many2many:group_members;" json:"members,omitempty"`

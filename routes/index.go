@@ -9,4 +9,5 @@ func SetupRoutes(r *gin.Engine) {
 	ExpenseRoutes(r)
 	ChecklistRoutes(r)
 	DocumentRoutes(r)
+	AdminRoutes(r)
 }
