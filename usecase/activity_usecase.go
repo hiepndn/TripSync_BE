@@ -81,11 +81,13 @@ func (u *activityUseCaseImpl) CreateActivity(ctx context.Context, groupID int, u
 		Description:   req.Description,
 		StartTime:     req.StartTime,
 		EndTime:       req.EndTime,
-		Status:        "PENDING", // Mặc định vào khu vực "Đang bỏ phiếu"
+		Status:        "PENDING",
 		CreatedBy:     &uid,
 		Lat:           req.Lat,
 		Lng:           req.Lng,
 		PlaceID:       req.PlaceID,
+		EstimatedCost: req.EstimatedCost,
+		Currency:      req.Currency,
 		IsAIGenerated: false,
 	}
 
@@ -138,6 +140,10 @@ func (uc *activityUseCaseImpl) UpdateActivity(userID, groupID, activityID int, r
 	activity.Description = req.Description
 	activity.StartTime = req.StartTime
 	activity.EndTime = req.EndTime
+	activity.EstimatedCost = req.EstimatedCost
+	if req.Currency != "" {
+		activity.Currency = req.Currency
+	}
 
 	// 4. Lưu xuống DB
 	return uc.repo.Update(activity)

@@ -13,23 +13,27 @@ type ActivityResponse struct {
 	MyRating          int     `json:"my_rating"`
 }
 type CreateActivityReq struct {
-	Name        string    `json:"name" binding:"required"`
-	Type        string    `json:"type" binding:"required"`
-	Location    string    `json:"location" binding:"required"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time" binding:"required"` // Chứa cả ngày và giờ
-	EndTime     time.Time `json:"end_time" binding:"required"`
-	Lat         float64   `json:"lat"`
-	Lng         float64   `json:"lng"`
-	PlaceID     string    `json:"place_id"`
+	Name          string    `json:"name" binding:"required"`
+	Type          string    `json:"type" binding:"required"`
+	Location      string    `json:"location" binding:"required"`
+	Description   string    `json:"description"`
+	StartTime     time.Time `json:"start_time" binding:"required"`
+	EndTime       time.Time `json:"end_time" binding:"required"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	Currency      string    `json:"currency"`
+	Lat           float64   `json:"lat"`
+	Lng           float64   `json:"lng"`
+	PlaceID       string    `json:"place_id"`
 }
 type UpdateActivityReq struct {
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`
-	Location    string    `json:"location"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
+	Name          string    `json:"name"`
+	Type          string    `json:"type"`
+	Location      string    `json:"location"`
+	Description   string    `json:"description"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	Currency      string    `json:"currency"`
 }
 
 type RateActivityReq struct {
