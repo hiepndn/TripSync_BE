@@ -38,15 +38,21 @@ type Activity struct {
 }
 
 type ActivityVote struct {
-	ActivityID uint   `gorm:"primaryKey" json:"activity_id"`
-	UserID     uint   `gorm:"primaryKey" json:"user_id"`
+	ActivityID uint   `gorm:"primaryKey;not null" json:"activity_id"`
+	UserID     uint   `gorm:"primaryKey;not null" json:"user_id"`
 	VoteType   string `gorm:"default:'UP'" json:"vote_type"` // UP hoặc DOWN
+
+	Activity Activity `gorm:"foreignKey:ActivityID;constraint:OnDelete:CASCADE;" json:"-"`
+	User     User     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE;" json:"-"`
 }
 
 type ActivityRating struct {
-	ActivityID uint      `gorm:"primaryKey" json:"activity_id"`
-	UserID     uint      `gorm:"primaryKey" json:"user_id"`
+	ActivityID uint      `gorm:"primaryKey;not null;constraint:OnDelete:CASCADE;" json:"activity_id"`
+	UserID     uint      `gorm:"primaryKey;not null;constraint:OnDelete:CASCADE;" json:"user_id"`
 	Rating     int       `gorm:"not null" json:"rating"` // 1–5
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+
+	Activity Activity `gorm:"foreignKey:ActivityID;constraint:OnDelete:CASCADE;" json:"-"`
+	User     User     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE;" json:"-"`
 }

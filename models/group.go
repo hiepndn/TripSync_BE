@@ -40,8 +40,11 @@ type Group struct {
 
 // Bảng trung gian tùy chỉnh để lưu quyền Admin/Member
 type GroupMember struct {
-	GroupID  uint      `gorm:"primaryKey" json:"group_id"`
-	UserID   uint      `gorm:"primaryKey" json:"user_id"`
-	Role     GroupRole `gorm:"default:'MEMBER'" json:"role"` // [cite: 67, 68]
+	GroupID  uint      `gorm:"primaryKey;not null" json:"group_id"`
+	UserID   uint      `gorm:"primaryKey;not null" json:"user_id"`
+	Role     GroupRole `gorm:"default:'MEMBER'" json:"role"`
 	JoinedAt time.Time `json:"joined_at"`
+
+	Group Group `gorm:"foreignKey:GroupID;constraint:OnDelete:CASCADE;" json:"-"`
+	User  User  `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE;" json:"-"`
 }
