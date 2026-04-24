@@ -21,12 +21,22 @@ func AuthMiddleware() gin.HandlerFunc {
 		secretKey := os.Getenv("JWT_SECRET")
 		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
 
-		token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// Kiểm tra signing method để tránh "alg:none" attack
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
 			return []byte(secretKey), nil
 		})
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// Lưu user_id vào context để các hàm sau sử dụng
+		// Bắt lỗi rõ ràng — tránh nil pointer dereference gây Panic
+		if err != nil || token == nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token không hợp lệ hoặc đã hết hạn"})
+			c.Abort()
+			return
+		}
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			c.Set("user_id", claims["user_id"])
 			if role, ok := claims["role"]; ok {
 				c.Set("role", role)

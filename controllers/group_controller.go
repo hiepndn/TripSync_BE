@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"tripsync-backend/dto"
@@ -104,15 +103,17 @@ func (gc *GroupController) JoinGroup(c *gin.Context) {
 }
 
 func (gc *GroupController) GetDetail(c *gin.Context) {
-	idParam := c.Param("id")
-	var groupID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID nhóm không hợp lệ"})
+		return
+	}
 
 	userIDVal, _ := c.Get("user_id")
 	userID := uint(userIDVal.(float64))
 
 	goCtx := c.Request.Context()
-	group, role, members, err := gc.groupUC.GetGroupDetail(goCtx, groupID, userID)
+	group, role, members, err := gc.groupUC.GetGroupDetail(goCtx, uint(groupID), userID)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
@@ -147,9 +148,11 @@ func (c *GroupController) RegenerateAI(ctx *gin.Context) {
 }
 
 func (gc *GroupController) UpdateGroup(c *gin.Context) {
-	idParam := c.Param("id")
-	var groupID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID nhóm không hợp lệ"})
+		return
+	}
 
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
@@ -165,7 +168,7 @@ func (gc *GroupController) UpdateGroup(c *gin.Context) {
 	}
 
 	goCtx := c.Request.Context()
-	updated, err := gc.groupUC.UpdateGroup(goCtx, groupID, userID, req)
+	updated, err := gc.groupUC.UpdateGroup(goCtx, uint(groupID), userID, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		msg := err.Error()
@@ -182,11 +185,16 @@ func (gc *GroupController) UpdateGroup(c *gin.Context) {
 }
 
 func (gc *GroupController) KickMember(c *gin.Context) {
-	idParam := c.Param("id")
-	userIDParam := c.Param("user_id")
-	var groupID, targetUserID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
-	fmt.Sscanf(userIDParam, "%d", &targetUserID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID nhóm không hợp lệ"})
+		return
+	}
+	targetUserID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID thành viên không hợp lệ"})
+		return
+	}
 
 	requestingIDVal, exists := c.Get("user_id")
 	if !exists {
@@ -196,7 +204,7 @@ func (gc *GroupController) KickMember(c *gin.Context) {
 	requestingID := uint(requestingIDVal.(float64))
 
 	goCtx := c.Request.Context()
-	if err := gc.groupUC.RemoveMember(goCtx, groupID, targetUserID, requestingID); err != nil {
+	if err := gc.groupUC.RemoveMember(goCtx, uint(groupID), uint(targetUserID), requestingID); err != nil {
 		status := http.StatusInternalServerError
 		msg := err.Error()
 		switch msg {
@@ -213,9 +221,11 @@ func (gc *GroupController) KickMember(c *gin.Context) {
 }
 
 func (gc *GroupController) DeleteGroup(c *gin.Context) {
-	idParam := c.Param("id")
-	var groupID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID nhóm không hợp lệ"})
+		return
+	}
 
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
@@ -225,7 +235,7 @@ func (gc *GroupController) DeleteGroup(c *gin.Context) {
 	userID := uint(userIDVal.(float64))
 
 	goCtx := c.Request.Context()
-	if err := gc.groupUC.DeleteGroup(goCtx, groupID, userID); err != nil {
+	if err := gc.groupUC.DeleteGroup(goCtx, uint(groupID), userID); err != nil {
 		status := http.StatusInternalServerError
 		if err.Error() == "chỉ Admin mới có quyền xóa nhóm" {
 			status = http.StatusForbidden
@@ -238,9 +248,11 @@ func (gc *GroupController) DeleteGroup(c *gin.Context) {
 }
 
 func (gc *GroupController) UpdateVisibility(c *gin.Context) {
-	idParam := c.Param("id")
-	var groupID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID nhóm không hợp lệ"})
+		return
+	}
 
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
@@ -256,7 +268,7 @@ func (gc *GroupController) UpdateVisibility(c *gin.Context) {
 	}
 
 	goCtx := c.Request.Context()
-	if err := gc.groupUC.UpdateVisibility(goCtx, groupID, userID, req.IsPublic); err != nil {
+	if err := gc.groupUC.UpdateVisibility(goCtx, uint(groupID), userID, req.IsPublic); err != nil {
 		msg := err.Error()
 		status := http.StatusInternalServerError
 		switch msg {
@@ -287,12 +299,14 @@ func (gc *GroupController) GetPublicGroups(c *gin.Context) {
 }
 
 func (gc *GroupController) GetPublicGroupDetail(c *gin.Context) {
-	idParam := c.Param("id")
-	var groupID uint
-	fmt.Sscanf(idParam, "%d", &groupID)
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "ID nhóm không hợp lệ"})
+		return
+	}
 
 	goCtx := c.Request.Context()
-	result, err := gc.groupUC.GetPublicGroupDetail(goCtx, groupID)
+	result, err := gc.groupUC.GetPublicGroupDetail(goCtx, uint(groupID))
 	if err != nil {
 		msg := err.Error()
 		switch msg {

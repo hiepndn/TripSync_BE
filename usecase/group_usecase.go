@@ -11,6 +11,7 @@ import (
 	"tripsync-backend/models"
 	"tripsync-backend/repository"
 	"tripsync-backend/service"
+	"tripsync-backend/ws"
 )
 
 type GroupUseCase interface {
@@ -211,6 +212,12 @@ func (u *groupUseCase) RunAIGenerationBackground(g *models.Group) {
 		}
 		fmt.Printf("✅ Đã tắt cờ IsAIGenerating cho nhóm %d\n", group.ID)
 		fmt.Println("🎉 Đã lưu toàn bộ lịch trình AI và khách sạn vào Database!")
+
+		// 🚀 Broadcast WebSocket: báo FE reload ngay, không cần polling
+		ws.GlobalHub.Broadcast(group.ID, ws.WSMessage{
+			Event:   ws.EventAIDone,
+			GroupID: group.ID,
+		}.Encode())
 	}(g)
 }
 
