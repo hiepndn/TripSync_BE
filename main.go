@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
-	"tripsync-backend/config" // Import folder config
+	"os"
+	"strings"
+	"tripsync-backend/config"
 	"tripsync-backend/routes"
 
 	"github.com/gin-contrib/cors"
@@ -21,8 +23,19 @@ func main() {
 
 	// 3. Chạy Server
 	r := gin.Default()
+
+	// CORS: lấy danh sách origins từ env, hỗ trợ nhiều domain cách nhau bằng dấu phẩy
+	allowedOrigins := os.Getenv("FRONTEND_URL")
+	if allowedOrigins == "" {
+		allowedOrigins = "http://localhost:3000" // Fallback dev
+	}
+	origins := strings.Split(allowedOrigins, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		AllowCredentials: true,

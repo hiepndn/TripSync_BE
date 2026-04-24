@@ -3,17 +3,36 @@ package ws
 
 import (
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
+// allowedOrigins đọc từ FRONTEND_URL env (giống CORS config trong main.go)
+func isOriginAllowed(origin string) bool {
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	for _, allowed := range strings.Split(frontendURL, ",") {
+		if strings.TrimSpace(allowed) == origin {
+			return true
+		}
+	}
+	return false
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Cho phép mọi origin trong dev — production nên check origin cụ thể
-	CheckOrigin: func(r *http.Request) bool { return true },
+	// Chỉ cho phép origin khớp với FRONTEND_URL — chặn request giả mạo
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		return isOriginAllowed(origin)
+	},
 }
 
 // HandleGroupWS là Gin handler cho route: GET /ws/groups/:id

@@ -21,8 +21,9 @@ func AuthRoutes(r *gin.Engine) {
 	// 3. Đăng ký đường dẫn
 	authGroup := r.Group("/api/auth")
 	{
-		authGroup.POST("/login", authController.Login)
-		authGroup.POST("/register", authController.Register)
+		// Rate limit: 5 lần/phút/IP cho login và register
+		authGroup.POST("/login", middleware.AuthRateLimit(), authController.Login)
+		authGroup.POST("/register", middleware.AuthRateLimit(), authController.Register)
 		protected := authGroup.Group("/")
 		protected.Use(middleware.AuthMiddleware())
 		{

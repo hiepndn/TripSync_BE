@@ -32,7 +32,7 @@ func GroupRoutes(r *gin.Engine) {
 		protected.Use(middleware.AuthMiddleware())
 		{
 			// Routes không cần check membership
-			protected.POST("/groups", groupController.CreateGroup)
+			protected.POST("/groups", middleware.AIRateLimit(), groupController.CreateGroup)
 			protected.GET("/groups", groupController.GetGroups)
 			protected.POST("/groups/join", groupController.JoinGroup)
 			protected.GET("/favorites", favoriteController.GetFavorites)
@@ -42,7 +42,7 @@ func GroupRoutes(r *gin.Engine) {
 			groupRoutes.Use(middleware.GroupMembershipMiddleware(groupRepo))
 			{
 				groupRoutes.GET("", groupController.GetDetail)
-				groupRoutes.POST("/regenerate-ai", groupController.RegenerateAI)
+				groupRoutes.POST("/regenerate-ai", middleware.AIRateLimit(), groupController.RegenerateAI)
 				groupRoutes.PUT("", groupController.UpdateGroup)
 				groupRoutes.PUT("/visibility", groupController.UpdateVisibility)
 				groupRoutes.DELETE("/members/:user_id", groupController.KickMember)
