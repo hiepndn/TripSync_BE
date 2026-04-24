@@ -43,5 +43,18 @@ func main() {
 
 	routes.SetupRoutes(r)
 
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+
+	// Nếu không tìm thấy biến PORT (nghĩa là đang chạy ở máy tính Local)
+	if port == "" {
+		port = "8080" // Lấy tạm cổng 8080 để test
+	}
+
+	// Chạy server với cái cổng vừa lấy được
+	log.Printf("🚀 Server đang chạy ở cổng %s", port)
+	err := r.Run(":" + port)
+
+	if err != nil {
+		log.Fatal("❌ Lỗi sập server: ", err)
+	}
 }
