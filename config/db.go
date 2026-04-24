@@ -10,11 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// Biến DB này viết hoa chữ cái đầu để các package khác (như Repository) có thể gọi được
 var DB *gorm.DB
 
+// ConnectDB chỉ kết nối DB — KHÔNG chạy AutoMigrate.
+// AutoMigrate được tách ra hàm RunMigrations() để chạy thủ công khi cần.
 func ConnectDB() {
-	// Lấy thông tin từ biến môi trường (đã load ở main)
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require TimeZone=Asia/Ho_Chi_Minh",
 		os.Getenv("DB_HOST"),
@@ -26,18 +26,26 @@ func ConnectDB() {
 
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-
 	if err != nil {
 		log.Fatal("❌ Lỗi kết nối DB: ", err)
 	}
 
-	fmt.Println("✅ Đã kết nối Database thành công (từ config)!")
+	fmt.Println("✅ Đã kết nối Database thành công!")
+}
 
-	// --- THÊM ĐOẠN NÀY ĐỂ CHẠY MIGRATE ---
+// RunMigrations chạy AutoMigrate cho tất cả models.
+// KHÔNG gọi hàm này trong ConnectDB hay main server.
+// Chỉ chạy thủ công khi cần cập nhật schema:
+//
+//	go run cmd/migrate/main.go
+func RunMigrations() {
+	if DB == nil {
+		log.Fatal("❌ DB chưa được kết nối, gọi ConnectDB() trước")
+	}
+
 	fmt.Println("⏳ Đang migrate database...")
 
-	// Liệt kê tất cả các Struct bạn vừa tạo vào đây
-	err = DB.AutoMigrate(
+	err := DB.AutoMigrate(
 		&models.User{},
 		&models.Group{},
 		&models.GroupMember{},
@@ -50,7 +58,6 @@ func ConnectDB() {
 		&models.Document{},
 		&models.GroupFavorite{},
 	)
-
 	if err != nil {
 		log.Fatal("❌ Lỗi Migrate: ", err)
 	}
@@ -58,7 +65,6 @@ func ConnectDB() {
 	fmt.Println("✅ Migrate thành công! Database đã cập nhật.")
 }
 
-// Hàm helper để lấy DB instance (nếu thích dùng kiểu Getter)
 func GetDB() *gorm.DB {
 	return DB
 }

@@ -21,7 +21,6 @@ func NewAdminController(userRepo repository.UserRepository, groupRepo repository
 }
 
 // POST /api/admin/seed — tạo hoặc nâng cấp tài khoản SUPERADMIN
-// Body: { "seed_key": "...", "email": "...", "password": "...", "full_name": "..." }
 func (ac *AdminController) SeedAdmin(c *gin.Context) {
 	var body struct {
 		SeedKey  string `json:"seed_key" binding:"required"`
@@ -34,17 +33,16 @@ func (ac *AdminController) SeedAdmin(c *gin.Context) {
 		return
 	}
 
-	// Kiểm tra seed key
 	expectedKey := os.Getenv("ADMIN_SEED_KEY")
 	if expectedKey == "" || body.SeedKey != expectedKey {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Seed key không hợp lệ"})
 		return
 	}
 
-	// Tìm user theo email
-	user, err := ac.userRepo.FindByEmail(body.Email)
+	goCtx := c.Request.Context()
+
+	user, err := ac.userRepo.FindByEmail(goCtx, body.Email)
 	if err != nil {
-		// Chưa có → tạo mới
 		hashedPw, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi mã hóa mật khẩu"})
@@ -56,7 +54,7 @@ func (ac *AdminController) SeedAdmin(c *gin.Context) {
 			FullName: body.FullName,
 			Role:     "SUPERADMIN",
 		}
-		if err := ac.userRepo.CreateUser(newUser); err != nil {
+		if err := ac.userRepo.CreateUser(goCtx, newUser); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi tạo tài khoản: " + err.Error()})
 			return
 		}
@@ -64,17 +62,18 @@ func (ac *AdminController) SeedAdmin(c *gin.Context) {
 		return
 	}
 
-	// Đã có → nâng cấp role
-	if err := ac.userRepo.UpdateUserRole(user.ID, "SUPERADMIN"); err != nil {
+	if err := ac.userRepo.UpdateUserRole(goCtx, user.ID, "SUPERADMIN"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi cập nhật role"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Đã nâng cấp tài khoản lên SUPERADMIN", "email": body.Email})
 }
+
 func (ac *AdminController) GetStats(c *gin.Context) {
-	totalUsers, _ := ac.userRepo.GetTotalUsers()
-	newUsersToday, _ := ac.userRepo.GetNewUsersToday()
-	totalGroups, _ := ac.groupRepo.GetTotalGroups()
+	goCtx := c.Request.Context()
+	totalUsers, _ := ac.userRepo.GetTotalUsers(goCtx)
+	newUsersToday, _ := ac.userRepo.GetNewUsersToday(goCtx)
+	totalGroups, _ := ac.groupRepo.GetTotalGroups(goCtx)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -88,11 +87,12 @@ func (ac *AdminController) GetStats(c *gin.Context) {
 
 // GET /api/admin/stats/chart — data cho chart 7 ngày gần nhất
 func (ac *AdminController) GetChartData(c *gin.Context) {
-	usersByDay, err := ac.userRepo.GetUsersByDay(7)
+	goCtx := c.Request.Context()
+	usersByDay, err := ac.userRepo.GetUsersByDay(goCtx, 7)
 	if err != nil {
 		usersByDay = []map[string]interface{}{}
 	}
-	groupsByDay, err := ac.groupRepo.GetGroupsByDay(7)
+	groupsByDay, err := ac.groupRepo.GetGroupsByDay(goCtx, 7)
 	if err != nil {
 		groupsByDay = []map[string]interface{}{}
 	}
@@ -107,21 +107,20 @@ func (ac *AdminController) GetChartData(c *gin.Context) {
 }
 
 // GET /api/admin/stats/growth?period=30&entity=users
-// period: 1 (hôm nay), 30, 90, 180, 365, 0 (all time)
-// entity: users | groups
 func (ac *AdminController) GetGrowthChart(c *gin.Context) {
 	periodStr := c.DefaultQuery("period", "30")
 	entity := c.DefaultQuery("entity", "users")
 	period, _ := strconv.Atoi(periodStr)
 
+	goCtx := c.Request.Context()
 	var data []map[string]interface{}
 	var err error
 
 	switch entity {
 	case "groups":
-		data, err = ac.groupRepo.GetGrowthData(period)
+		data, err = ac.groupRepo.GetGrowthData(goCtx, period)
 	default:
-		data, err = ac.userRepo.GetGrowthData(period)
+		data, err = ac.userRepo.GetGrowthData(goCtx, period)
 	}
 
 	if err != nil || data == nil {
@@ -147,7 +146,8 @@ func (ac *AdminController) GetUsers(c *gin.Context) {
 		pageSize = 10
 	}
 
-	users, total, err := ac.userRepo.GetAllUsers(page, pageSize, search)
+	goCtx := c.Request.Context()
+	users, total, err := ac.userRepo.GetAllUsers(goCtx, page, pageSize, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi lấy danh sách người dùng"})
 		return
@@ -187,7 +187,8 @@ func (ac *AdminController) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	if err := ac.userRepo.UpdateUserRole(uint(userID), body.Role); err != nil {
+	goCtx := c.Request.Context()
+	if err := ac.userRepo.UpdateUserRole(goCtx, uint(userID), body.Role); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi cập nhật role"})
 		return
 	}
@@ -204,7 +205,6 @@ func (ac *AdminController) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Không cho xóa chính mình
 	selfIDVal, _ := c.Get("user_id")
 	selfID := uint(selfIDVal.(float64))
 	if uint(userID) == selfID {
@@ -212,7 +212,8 @@ func (ac *AdminController) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := ac.userRepo.DeleteUser(uint(userID)); err != nil {
+	goCtx := c.Request.Context()
+	if err := ac.userRepo.DeleteUser(goCtx, uint(userID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi xóa người dùng"})
 		return
 	}
@@ -233,7 +234,8 @@ func (ac *AdminController) GetGroups(c *gin.Context) {
 		pageSize = 10
 	}
 
-	groups, total, err := ac.groupRepo.GetAllGroups(page, pageSize, search)
+	goCtx := c.Request.Context()
+	groups, total, err := ac.groupRepo.GetAllGroups(goCtx, page, pageSize, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi lấy danh sách nhóm"})
 		return
@@ -259,7 +261,8 @@ func (ac *AdminController) DeleteGroup(c *gin.Context) {
 		return
 	}
 
-	if err := ac.groupRepo.AdminDeleteGroup(uint(groupID)); err != nil {
+	goCtx := c.Request.Context()
+	if err := ac.groupRepo.AdminDeleteGroup(goCtx, uint(groupID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi xóa nhóm"})
 		return
 	}

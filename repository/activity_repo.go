@@ -165,7 +165,7 @@ func (r *activityRepositoryImpl) DeletePendingAIActivities(groupID uint) error {
 	// Xóa TẤT CẢ activities PENDING (bao gồm cả import, manual, AI)
 	// Chỉ giữ lại các activity đã được APPROVED
 	return r.db.Unscoped().
-		Where("group_id = ? AND status = ?", groupID, "PENDING").
+		Where("group_id = ? AND status = ?", groupID, models.StatusPending).
 		Delete(&models.Activity{}).Error
 }
 

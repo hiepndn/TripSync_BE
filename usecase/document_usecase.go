@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"tripsync-backend/dto"
 	"tripsync-backend/models"
@@ -10,9 +11,9 @@ import (
 )
 
 type DocumentUseCase interface {
-	CreateDocument(groupID uint, userID uint, req dto.CreateDocumentRequest) (*models.Document, error)
-	GetGroupDocuments(groupID uint) ([]models.Document, error)
-	DeleteDocument(docID uint, userID uint, groupID uint) error
+	CreateDocument(ctx context.Context, groupID uint, userID uint, req dto.CreateDocumentRequest) (*models.Document, error)
+	GetGroupDocuments(ctx context.Context, groupID uint) ([]models.Document, error)
+	DeleteDocument(ctx context.Context, docID uint, userID uint, groupID uint) error
 }
 
 type documentUseCase struct {
@@ -27,9 +28,8 @@ func NewDocumentUseCase(docRepo repository.DocumentRepository, groupRepo reposit
 	}
 }
 
-func (u *documentUseCase) CreateDocument(groupID uint, userID uint, req dto.CreateDocumentRequest) (*models.Document, error) {
-	// Kiểm tra user có trong nhóm không
-	inGroup, err := u.groupRepo.IsUserInGroup(groupID, userID)
+func (u *documentUseCase) CreateDocument(ctx context.Context, groupID uint, userID uint, req dto.CreateDocumentRequest) (*models.Document, error) {
+	inGroup, err := u.groupRepo.IsUserInGroup(ctx, groupID, userID)
 	if err != nil || !inGroup {
 		return nil, errors.New("bạn không phải thành viên của nhóm này")
 	}
@@ -44,24 +44,23 @@ func (u *documentUseCase) CreateDocument(groupID uint, userID uint, req dto.Crea
 		UploadedByID: userID,
 	}
 
-	if err := u.docRepo.Create(doc); err != nil {
+	if err := u.docRepo.Create(ctx, doc); err != nil {
 		return nil, errors.New("lỗi khi lưu tài liệu: " + err.Error())
 	}
 
 	return doc, nil
 }
 
-func (u *documentUseCase) GetGroupDocuments(groupID uint) ([]models.Document, error) {
-	docs, err := u.docRepo.GetByGroupID(groupID)
+func (u *documentUseCase) GetGroupDocuments(ctx context.Context, groupID uint) ([]models.Document, error) {
+	docs, err := u.docRepo.GetByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, errors.New("lỗi khi lấy danh sách tài liệu: " + err.Error())
 	}
 	return docs, nil
 }
 
-func (u *documentUseCase) DeleteDocument(docID uint, userID uint, groupID uint) error {
-	// Lấy thông tin tài liệu
-	doc, err := u.docRepo.GetByID(docID)
+func (u *documentUseCase) DeleteDocument(ctx context.Context, docID uint, userID uint, groupID uint) error {
+	doc, err := u.docRepo.GetByID(ctx, docID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("not found")
@@ -69,13 +68,12 @@ func (u *documentUseCase) DeleteDocument(docID uint, userID uint, groupID uint) 
 		return errors.New("lỗi khi tìm tài liệu: " + err.Error())
 	}
 
-	// Kiểm tra quyền: phải là Uploader hoặc ADMIN
 	if doc.UploadedByID != userID {
-		role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+		role, err := u.groupRepo.GetUserRoleInGroup(ctx, groupID, userID)
 		if err != nil || role != "ADMIN" {
 			return errors.New("forbidden")
 		}
 	}
 
-	return u.docRepo.Delete(docID)
+	return u.docRepo.Delete(ctx, docID)
 }

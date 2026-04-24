@@ -28,7 +28,7 @@ func GroupMembershipMiddleware(groupRepo repository.GroupRepository) gin.Handler
 		}
 		userID := uint(userIDVal.(float64))
 
-		isMember, err := groupRepo.IsUserInGroup(uint(groupID), userID)
+		isMember, err := groupRepo.IsUserInGroup(c.Request.Context(), uint(groupID), userID)
 		if err != nil || !isMember {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Bạn không có quyền truy cập nhóm này"})
 			c.Abort()

@@ -31,7 +31,8 @@ func (c *ChecklistController) CreateItem(ctx *gin.Context) {
 		return
 	}
 
-	item, err := c.useCase.CreateItem(uint(groupID), req)
+	goCtx := ctx.Request.Context()
+	item, err := c.useCase.CreateItem(goCtx, uint(groupID), req)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -48,7 +49,8 @@ func (c *ChecklistController) GetItems(ctx *gin.Context) {
 		return
 	}
 
-	items, err := c.useCase.GetItemsByGroup(uint(groupID))
+	goCtx := ctx.Request.Context()
+	items, err := c.useCase.GetItemsByGroup(goCtx, uint(groupID))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -69,7 +71,8 @@ func (c *ChecklistController) ToggleComplete(ctx *gin.Context) {
 	}
 	userID := int(userIDVal.(float64))
 
-	if err := c.useCase.ToggleComplete(uint(itemID), uint(groupID), uint(userID)); err != nil {
+	goCtx := ctx.Request.Context()
+	if err := c.useCase.ToggleComplete(goCtx, uint(itemID), uint(groupID), uint(userID)); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -88,7 +91,8 @@ func (c *ChecklistController) AssignMember(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.useCase.AssignMember(uint(itemID), uint(groupID), req); err != nil {
+	goCtx := ctx.Request.Context()
+	if err := c.useCase.AssignMember(goCtx, uint(itemID), uint(groupID), req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -101,7 +105,8 @@ func (c *ChecklistController) DeleteItem(ctx *gin.Context) {
 	groupID, _ := strconv.Atoi(ctx.Param("id"))
 	itemID, _ := strconv.Atoi(ctx.Param("itemId"))
 
-	if err := c.useCase.DeleteItem(uint(itemID), uint(groupID)); err != nil {
+	goCtx := ctx.Request.Context()
+	if err := c.useCase.DeleteItem(goCtx, uint(itemID), uint(groupID)); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

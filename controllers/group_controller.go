@@ -28,29 +28,25 @@ type CreateGroupRequest struct {
 func (gc *GroupController) CreateGroup(c *gin.Context) {
 	var req dto.CreateGroupRequest
 
-	// 1. Bind JSON
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Thiếu thông tin hoặc sai định dạng"})
 		return
 	}
 
-	// 2. Lấy userID từ Middleware
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Không tìm thấy thông tin xác thực"})
 		return
 	}
-	// Ép kiểu cho chuẩn (phụ thuộc vào jwt claims của bạn, thường là float64)
 	uid := uint(userID.(float64))
 
-	// 3. Gọi UseCase
-	newGroup, err := gc.groupUC.CreateGroup(req, uid)
+	goCtx := c.Request.Context()
+	newGroup, err := gc.groupUC.CreateGroup(goCtx, req, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
 		return
 	}
 
-	// 4. Trả về thành công
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Tạo chuyến đi thành công!",
@@ -66,7 +62,8 @@ func (gc *GroupController) GetGroups(c *gin.Context) {
 	}
 	uid := uint(userID.(float64))
 
-	groups, err := gc.groupUC.GetUserGroupsWithRole(uid)
+	goCtx := c.Request.Context()
+	groups, err := gc.groupUC.GetUserGroupsWithRole(goCtx, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Lỗi khi lấy danh sách nhóm"})
 		return
@@ -89,12 +86,11 @@ func (gc *GroupController) JoinGroup(c *gin.Context) {
 		return
 	}
 
-	// Lấy ID người dùng từ Middleware
 	userID, _ := c.Get("user_id")
 	uid := uint(userID.(float64))
 
-	// Gọi UseCase xử lý
-	joinedGroup, err := gc.groupUC.JoinGroupByCode(req.InviteCode, uid)
+	goCtx := c.Request.Context()
+	joinedGroup, err := gc.groupUC.JoinGroupByCode(goCtx, req.InviteCode, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
 		return
@@ -115,20 +111,19 @@ func (gc *GroupController) GetDetail(c *gin.Context) {
 	userIDVal, _ := c.Get("user_id")
 	userID := uint(userIDVal.(float64))
 
-	// Hứng thêm biến members từ UseCase
-	group, role, members, err := gc.groupUC.GetGroupDetail(groupID, userID)
+	goCtx := c.Request.Context()
+	group, role, members, err := gc.groupUC.GetGroupDetail(goCtx, groupID, userID)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Trả JSON
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Thành công",
 		"data": gin.H{
 			"group_info": group,
 			"my_role":    role,
-			"members":    members, // Đầy đủ Avatar, Name, Role của cả nhóm!
+			"members":    members,
 		},
 	})
 }
@@ -137,11 +132,11 @@ func (c *GroupController) RegenerateAI(ctx *gin.Context) {
 	groupIDStr := ctx.Param("id")
 	groupID, _ := strconv.Atoi(groupIDStr)
 
-	// Ép kiểu float64 y như ông hay làm
 	userIDVal, _ := ctx.Get("user_id")
 	userID := int(userIDVal.(float64))
 
-	if err := c.groupUC.RegenerateAIActivities(uint(groupID), uint(userID)); err != nil {
+	goCtx := ctx.Request.Context()
+	if err := c.groupUC.RegenerateAIActivities(goCtx, uint(groupID), uint(userID)); err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
@@ -169,7 +164,8 @@ func (gc *GroupController) UpdateGroup(c *gin.Context) {
 		return
 	}
 
-	updated, err := gc.groupUC.UpdateGroup(groupID, userID, req)
+	goCtx := c.Request.Context()
+	updated, err := gc.groupUC.UpdateGroup(goCtx, groupID, userID, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		msg := err.Error()
@@ -199,7 +195,8 @@ func (gc *GroupController) KickMember(c *gin.Context) {
 	}
 	requestingID := uint(requestingIDVal.(float64))
 
-	if err := gc.groupUC.RemoveMember(groupID, targetUserID, requestingID); err != nil {
+	goCtx := c.Request.Context()
+	if err := gc.groupUC.RemoveMember(goCtx, groupID, targetUserID, requestingID); err != nil {
 		status := http.StatusInternalServerError
 		msg := err.Error()
 		switch msg {
@@ -227,7 +224,8 @@ func (gc *GroupController) DeleteGroup(c *gin.Context) {
 	}
 	userID := uint(userIDVal.(float64))
 
-	if err := gc.groupUC.DeleteGroup(groupID, userID); err != nil {
+	goCtx := c.Request.Context()
+	if err := gc.groupUC.DeleteGroup(goCtx, groupID, userID); err != nil {
 		status := http.StatusInternalServerError
 		if err.Error() == "chỉ Admin mới có quyền xóa nhóm" {
 			status = http.StatusForbidden
@@ -257,7 +255,8 @@ func (gc *GroupController) UpdateVisibility(c *gin.Context) {
 		return
 	}
 
-	if err := gc.groupUC.UpdateVisibility(groupID, userID, req.IsPublic); err != nil {
+	goCtx := c.Request.Context()
+	if err := gc.groupUC.UpdateVisibility(goCtx, groupID, userID, req.IsPublic); err != nil {
 		msg := err.Error()
 		status := http.StatusInternalServerError
 		switch msg {
@@ -274,7 +273,8 @@ func (gc *GroupController) UpdateVisibility(c *gin.Context) {
 }
 
 func (gc *GroupController) GetPublicGroups(c *gin.Context) {
-	groups, err := gc.groupUC.GetPublicGroups()
+	goCtx := c.Request.Context()
+	groups, err := gc.groupUC.GetPublicGroups(goCtx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Lỗi khi lấy danh sách nhóm công khai"})
 		return
@@ -291,7 +291,8 @@ func (gc *GroupController) GetPublicGroupDetail(c *gin.Context) {
 	var groupID uint
 	fmt.Sscanf(idParam, "%d", &groupID)
 
-	result, err := gc.groupUC.GetPublicGroupDetail(groupID)
+	goCtx := c.Request.Context()
+	result, err := gc.groupUC.GetPublicGroupDetail(goCtx, groupID)
 	if err != nil {
 		msg := err.Error()
 		switch msg {

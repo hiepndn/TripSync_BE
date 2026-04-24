@@ -7,8 +7,8 @@ import (
 type ActivityStatus string
 
 const (
-	StatusPending ActivityStatus = "PENDING"
-	StatusApprove ActivityStatus = "APPROVE" // Đã chốt [cite: 30, 34]
+	StatusPending  ActivityStatus = "PENDING"
+	StatusApproved ActivityStatus = "APPROVED" // Đã chốt
 )
 
 type Activity struct {

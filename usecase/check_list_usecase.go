@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"tripsync-backend/dto"
 	"tripsync-backend/models"
@@ -8,11 +9,11 @@ import (
 )
 
 type ChecklistUseCase interface {
-	CreateItem(groupID uint, req dto.CreateChecklistItemReq) (*models.ChecklistItem, error)
-	GetItemsByGroup(groupID uint) ([]models.ChecklistItem, error)
-	ToggleComplete(itemID uint, groupID uint, userID uint) error
-	AssignMember(itemID uint, groupID uint, req dto.AssignMemberReq) error
-	DeleteItem(itemID uint, groupID uint) error
+	CreateItem(ctx context.Context, groupID uint, req dto.CreateChecklistItemReq) (*models.ChecklistItem, error)
+	GetItemsByGroup(ctx context.Context, groupID uint) ([]models.ChecklistItem, error)
+	ToggleComplete(ctx context.Context, itemID uint, groupID uint, userID uint) error
+	AssignMember(ctx context.Context, itemID uint, groupID uint, req dto.AssignMemberReq) error
+	DeleteItem(ctx context.Context, itemID uint, groupID uint) error
 }
 
 type checklistUseCase struct {
@@ -23,7 +24,7 @@ func NewChecklistUseCase(repo repository.ChecklistRepository) ChecklistUseCase {
 	return &checklistUseCase{repo: repo}
 }
 
-func (u *checklistUseCase) CreateItem(groupID uint, req dto.CreateChecklistItemReq) (*models.ChecklistItem, error) {
+func (u *checklistUseCase) CreateItem(ctx context.Context, groupID uint, req dto.CreateChecklistItemReq) (*models.ChecklistItem, error) {
 	item := &models.ChecklistItem{
 		GroupID:     groupID,
 		Title:       req.Title,
@@ -31,46 +32,44 @@ func (u *checklistUseCase) CreateItem(groupID uint, req dto.CreateChecklistItemR
 		IsCompleted: false,
 	}
 
-	if err := u.repo.CreateItem(item); err != nil {
+	if err := u.repo.CreateItem(ctx, item); err != nil {
 		return nil, errors.New("không thể tạo việc cần làm: " + err.Error())
 	}
 	return item, nil
 }
 
-func (u *checklistUseCase) GetItemsByGroup(groupID uint) ([]models.ChecklistItem, error) {
-	return u.repo.GetItemsByGroup(groupID)
+func (u *checklistUseCase) GetItemsByGroup(ctx context.Context, groupID uint) ([]models.ChecklistItem, error) {
+	return u.repo.GetItemsByGroup(ctx, groupID)
 }
 
-// Logic: Đổi trạng thái Xong <-> Chưa xong
-func (u *checklistUseCase) ToggleComplete(itemID uint, groupID uint, userID uint) error {
-	item, err := u.repo.GetItemByID(itemID, groupID)
+// ToggleComplete đổi trạng thái Xong <-> Chưa xong
+func (u *checklistUseCase) ToggleComplete(ctx context.Context, itemID uint, groupID uint, userID uint) error {
+	item, err := u.repo.GetItemByID(ctx, itemID, groupID)
 	if err != nil {
 		return errors.New("không tìm thấy công việc")
 	}
 
 	item.IsCompleted = !item.IsCompleted
 	if item.IsCompleted {
-		// Nếu đánh dấu xong, lưu lại ID người bấm
 		item.CompletedByID = &userID
 	} else {
-		// Bỏ đánh dấu thì clear ID
 		item.CompletedByID = nil
 	}
 
-	return u.repo.UpdateItem(item)
+	return u.repo.UpdateItem(ctx, item)
 }
 
-// Logic: Giao việc cho thành viên
-func (u *checklistUseCase) AssignMember(itemID uint, groupID uint, req dto.AssignMemberReq) error {
-	item, err := u.repo.GetItemByID(itemID, groupID)
+// AssignMember giao việc cho thành viên
+func (u *checklistUseCase) AssignMember(ctx context.Context, itemID uint, groupID uint, req dto.AssignMemberReq) error {
+	item, err := u.repo.GetItemByID(ctx, itemID, groupID)
 	if err != nil {
 		return errors.New("không tìm thấy công việc")
 	}
 
 	item.AssigneeID = req.AssigneeID
-	return u.repo.UpdateItem(item)
+	return u.repo.UpdateItem(ctx, item)
 }
 
-func (u *checklistUseCase) DeleteItem(itemID uint, groupID uint) error {
-	return u.repo.DeleteItem(itemID, groupID)
+func (u *checklistUseCase) DeleteItem(ctx context.Context, itemID uint, groupID uint) error {
+	return u.repo.DeleteItem(ctx, itemID, groupID)
 }

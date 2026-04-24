@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"tripsync-backend/dto"
@@ -190,6 +191,8 @@ func (b *BacktrackingAlgorithm) Calculate(expenses []models.Expense, splits []mo
 
 	// Fallback về Greedy nếu quá nhiều người để tránh timeout
 	if len(nonZero) > backtrackingMaxParticipants {
+		fmt.Printf("⚠️ [BacktrackingAlgorithm] Nhóm có %d người vượt ngưỡng %d — fallback về Greedy để tránh timeout\n",
+			len(nonZero), backtrackingMaxParticipants)
 		greedy := &GreedyAlgorithm{}
 		return greedy.Calculate(expenses, splits)
 	}

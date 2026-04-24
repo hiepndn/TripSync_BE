@@ -32,7 +32,8 @@ func (fc *FavoriteController) ToggleFavorite(c *gin.Context) {
 	}
 	userID := uint(userIDVal.(float64))
 
-	isFavorited, err := fc.uc.ToggleFavorite(userID, uint(groupID))
+	goCtx := c.Request.Context()
+	isFavorited, err := fc.uc.ToggleFavorite(goCtx, userID, uint(groupID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -59,7 +60,8 @@ func (fc *FavoriteController) GetFavorites(c *gin.Context) {
 	}
 	userID := uint(userIDVal.(float64))
 
-	groups, err := fc.uc.GetFavorites(userID)
+	goCtx := c.Request.Context()
+	groups, err := fc.uc.GetFavorites(goCtx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi lấy danh sách yêu thích"})
 		return

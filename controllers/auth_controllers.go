@@ -15,15 +15,13 @@ func NewAuthController(uc usecase.AuthUseCase) *AuthController {
 	return &AuthController{authUC: uc}
 }
 
-// LoginRequest là cái khay để hứng data từ React ném sang
-// Cái tag `binding` cực kỳ xịn, nó giúp Gin tự động kiểm tra định dạng email và độ dài mật khẩu luôn!
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
 type RegisterRequest struct {
-	FullName string `json:"fullName" binding:"required"` // Khớp với name bên React
+	FullName string `json:"fullName" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 }
@@ -51,11 +49,9 @@ func getUserIDFromContext(c *gin.Context) (uint, bool) {
 	return uint(floatID), true
 }
 
-// Login là hàm xử lý chính cho endpoint /api/auth/login
 func (ac *AuthController) Login(c *gin.Context) {
 	var req LoginRequest
 
-	// 1. Đọc dữ liệu JSON từ request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -64,19 +60,17 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	// 2. Giao việc cho Đầu bếp UseCase (Xóa code giả cầy đi, dùng hàng thật)
-	token, err := ac.authUC.Login(req.Email, req.Password)
+	goCtx := c.Request.Context()
+	token, err := ac.authUC.Login(goCtx, req.Email, req.Password)
 
-	// 3. Nếu Đầu bếp báo lỗi (sai email, sai pass...)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"error":   err.Error(), // Lấy đúng câu chửi từ UseCase trả về cho React
+			"error":   err.Error(),
 		})
 		return
 	}
 
-	// 4. Thành công mỹ mãn! Trả Token thật về cho React
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Đăng nhập thành công!",
@@ -87,7 +81,6 @@ func (ac *AuthController) Login(c *gin.Context) {
 func (ac *AuthController) Register(c *gin.Context) {
 	var req RegisterRequest
 
-	// 1. Kiểm tra dữ liệu đầu vào
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -96,19 +89,17 @@ func (ac *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	// 2. Gọi Đầu bếp (UseCase) để thực hiện Đăng ký (lưu vào Database)
-	err := ac.authUC.Register(req.FullName, req.Email, req.Password)
+	goCtx := c.Request.Context()
+	err := ac.authUC.Register(goCtx, req.FullName, req.Email, req.Password)
 
-	// 3. Nếu UseCase báo lỗi (ví dụ: Email đã tồn tại)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   err.Error(), // Trả cái câu lỗi từ UseCase về cho React hiển thị
+			"error":   err.Error(),
 		})
 		return
 	}
 
-	// 4. THÀNH CÔNG: Trả về JSON báo tin vui cho React! 🎉
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Đăng ký thành công! Chào mừng bạn đến với TripSync.",
@@ -122,7 +113,8 @@ func (ac *AuthController) GetMe(c *gin.Context) {
 		return
 	}
 
-	user, err := ac.authUC.GetProfile(userID)
+	goCtx := c.Request.Context()
+	user, err := ac.authUC.GetProfile(goCtx, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -148,7 +140,8 @@ func (ac *AuthController) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := ac.authUC.UpdateProfile(userID, req.FullName, req.AvatarURL)
+	goCtx := c.Request.Context()
+	updatedUser, err := ac.authUC.UpdateProfile(goCtx, userID, req.FullName, req.AvatarURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -175,7 +168,8 @@ func (ac *AuthController) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := ac.authUC.ChangePassword(userID, req.OldPassword, req.NewPassword); err != nil {
+	goCtx := c.Request.Context()
+	if err := ac.authUC.ChangePassword(goCtx, userID, req.OldPassword, req.NewPassword); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

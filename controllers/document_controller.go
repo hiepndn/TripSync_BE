@@ -26,7 +26,8 @@ func (c *DocumentController) GetDocuments(ctx *gin.Context) {
 		return
 	}
 
-	docs, err := c.docUC.GetGroupDocuments(uint(groupID))
+	goCtx := ctx.Request.Context()
+	docs, err := c.docUC.GetGroupDocuments(goCtx, uint(groupID))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,7 +61,8 @@ func (c *DocumentController) CreateDocument(ctx *gin.Context) {
 		return
 	}
 
-	doc, err := c.docUC.CreateDocument(uint(groupID), userID, req)
+	goCtx := ctx.Request.Context()
+	doc, err := c.docUC.CreateDocument(goCtx, uint(groupID), userID, req)
 	if err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
@@ -96,7 +98,8 @@ func (c *DocumentController) DeleteDocument(ctx *gin.Context) {
 	}
 	userID := uint(userIDVal.(float64))
 
-	err = c.docUC.DeleteDocument(uint(docID), userID, uint(groupID))
+	goCtx := ctx.Request.Context()
+	err = c.docUC.DeleteDocument(goCtx, uint(docID), userID, uint(groupID))
 	if err != nil {
 		switch err.Error() {
 		case "not found":

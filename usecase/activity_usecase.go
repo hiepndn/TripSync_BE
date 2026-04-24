@@ -51,7 +51,7 @@ func (u *activityUseCaseImpl) GetGroupActivities(ctx context.Context, groupID in
 
 func (u *activityUseCaseImpl) CreateActivity(ctx context.Context, groupID int, userID int, req dto.CreateActivityReq) error {
 	// 1. Lấy thông tin Group hiện tại (giả sử bạn có groupRepo)
-	group, err := u.groupRepo.GetByID(uint(groupID))
+	group, err := u.groupRepo.GetByID(ctx, uint(groupID))
 	if err != nil {
 		return err
 	}
@@ -106,18 +106,18 @@ func (u *activityUseCaseImpl) ToggleActivityVote(ctx context.Context, activityID
 }
 
 func (u *activityUseCaseImpl) FinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error {
-	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	role, err := u.groupRepo.GetUserRoleInGroup(ctx, groupID, userID)
 	if err != nil {
 		return errors.New("bạn không phải là thành viên của nhóm này")
 	}
 	if role != "ADMIN" {
 		return errors.New("chỉ Admin mới có quyền chốt hoạt động vào lịch chính thức")
 	}
-	return u.repo.UpdateStatus(ctx, activityID, "APPROVED")
+	return u.repo.UpdateStatus(ctx, activityID, string(models.StatusApproved))
 }
 
 func (u *activityUseCaseImpl) UnfinalizeActivity(ctx context.Context, groupID uint, activityID uint, userID uint) error {
-	role, err := u.groupRepo.GetUserRoleInGroup(groupID, userID)
+	role, err := u.groupRepo.GetUserRoleInGroup(ctx, groupID, userID)
 	if err != nil {
 		return errors.New("bạn không phải là thành viên của nhóm này")
 	}
@@ -135,7 +135,7 @@ func (uc *activityUseCaseImpl) UpdateActivity(userID, groupID, activityID int, r
 	}
 
 	// 2. Phân quyền: Gọi đúng hàm GetUserRoleInGroup và ép kiểu sang uint
-	role, _ := uc.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	role, _ := uc.groupRepo.GetUserRoleInGroup(context.Background(), uint(groupID), uint(userID))
 	if role != "ADMIN" && (activity.CreatedBy == nil || *activity.CreatedBy != uint(userID)) {
 		return errors.New("bạn không có quyền sửa hoạt động này")
 	}
@@ -163,7 +163,7 @@ func (uc *activityUseCaseImpl) DeleteActivity(userID, groupID, activityID int) e
 	}
 
 	// Phân quyền: ADMIN hoặc chính chủ mới được xóa
-	role, _ := uc.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	role, _ := uc.groupRepo.GetUserRoleInGroup(context.Background(), uint(groupID), uint(userID))
 	if role != "ADMIN" && (activity.CreatedBy == nil || *activity.CreatedBy != uint(userID)) {
 		return errors.New("bạn không có quyền xóa hoạt động này")
 	}
@@ -172,7 +172,7 @@ func (uc *activityUseCaseImpl) DeleteActivity(userID, groupID, activityID int) e
 }
 
 func (uc *activityUseCaseImpl) DeleteAllActivities(ctx context.Context, groupID int, userID int) error {
-	role, err := uc.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	role, err := uc.groupRepo.GetUserRoleInGroup(ctx, uint(groupID), uint(userID))
 	if err != nil || role != "ADMIN" {
 		return errors.New("chỉ Admin mới có quyền xóa toàn bộ lịch trình")
 	}
@@ -180,7 +180,7 @@ func (uc *activityUseCaseImpl) DeleteAllActivities(ctx context.Context, groupID 
 }
 
 func (u *activityUseCaseImpl) RateActivity(ctx context.Context, groupID int, activityID int, userID int, rating int) error {
-	_, err := u.groupRepo.GetUserRoleInGroup(uint(groupID), uint(userID))
+	_, err := u.groupRepo.GetUserRoleInGroup(ctx, uint(groupID), uint(userID))
 	if err != nil {
 		return errors.New("bạn không phải là thành viên của nhóm này")
 	}
@@ -197,7 +197,7 @@ func (u *activityUseCaseImpl) GetSuggestions(ctx context.Context, groupID int, a
 	}
 
 	// Lấy route_destinations của group hiện tại để filter các group có chung điểm đến
-	group, err := u.groupRepo.GetByID(uint(groupID))
+	group, err := u.groupRepo.GetByID(ctx, uint(groupID))
 	if err != nil {
 		return nil, errors.New("không tìm thấy thông tin nhóm")
 	}
@@ -209,7 +209,7 @@ func (u *activityUseCaseImpl) GetSuggestions(ctx context.Context, groupID int, a
 // No authentication is required — the caller is responsible for ensuring the group exists.
 func (u *activityUseCaseImpl) ExportActivities(ctx context.Context, groupID int) ([]dto.ExportActivityItem, error) {
 	// Verify group exists
-	_, err := u.groupRepo.GetByID(uint(groupID))
+	_, err := u.groupRepo.GetByID(ctx, uint(groupID))
 	if err != nil {
 		return nil, errors.New("group_not_found")
 	}
@@ -247,19 +247,19 @@ func (u *activityUseCaseImpl) ImportActivities(ctx context.Context, targetGroupI
 	}
 
 	// Check user is ADMIN of target group
-	targetRole, err := u.groupRepo.GetUserRoleInGroup(uint(targetGroupID), uint(userID))
+	targetRole, err := u.groupRepo.GetUserRoleInGroup(ctx, uint(targetGroupID), uint(userID))
 	if err != nil || targetRole != "ADMIN" {
 		return 0, errors.New("not_admin_of_target")
 	}
 
 	// Check user is a member of source group
-	isMember, err := u.groupRepo.IsUserInGroup(uint(sourceGroupID), uint(userID))
+	isMember, err := u.groupRepo.IsUserInGroup(ctx, uint(sourceGroupID), uint(userID))
 	if err != nil || !isMember {
 		return 0, errors.New("not_member_of_source")
 	}
 
 	// Fetch target group to get start_date for time remapping
-	targetGroup, err := u.groupRepo.GetByID(uint(targetGroupID))
+	targetGroup, err := u.groupRepo.GetByID(ctx, uint(targetGroupID))
 	if err != nil {
 		return 0, errors.New("target_group_not_found")
 	}
@@ -319,13 +319,13 @@ func (u *activityUseCaseImpl) ImportActivities(ctx context.Context, targetGroupI
 // The caller must be ADMIN of the target group. Times are remapped to target group's start_date.
 func (u *activityUseCaseImpl) ImportFromJSON(ctx context.Context, targetGroupID int, userID int, items []dto.ExportActivityItem) (int, error) {
 	// Check user is ADMIN of target group
-	targetRole, err := u.groupRepo.GetUserRoleInGroup(uint(targetGroupID), uint(userID))
+	targetRole, err := u.groupRepo.GetUserRoleInGroup(ctx, uint(targetGroupID), uint(userID))
 	if err != nil || targetRole != "ADMIN" {
 		return 0, errors.New("not_admin_of_target")
 	}
 
 	// Fetch target group to get start_date for time remapping
-	targetGroup, err := u.groupRepo.GetByID(uint(targetGroupID))
+	targetGroup, err := u.groupRepo.GetByID(ctx, uint(targetGroupID))
 	if err != nil {
 		return 0, errors.New("target_group_not_found")
 	}
