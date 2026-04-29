@@ -274,23 +274,48 @@ func (u *activityUseCaseImpl) ImportActivities(ctx context.Context, targetGroupI
 		return 0, nil
 	}
 
-	// Find the earliest start_time in source activities to use as base for remapping
+	// Find the earliest and latest time in source activities
 	minTime := sourceActivities[0].StartTime
+	maxTime := sourceActivities[0].EndTime
 	for _, src := range sourceActivities {
 		if src.StartTime.Before(minTime) {
 			minTime = src.StartTime
 		}
+		if src.EndTime.After(maxTime) {
+			maxTime = src.EndTime
+		}
 	}
-	// Convert to UTC then normalize to start of day
-	minTimeUTC := minTime.UTC()
-	minDay := time.Date(minTimeUTC.Year(), minTimeUTC.Month(), minTimeUTC.Day(), 0, 0, 0, 0, time.UTC)
-	targetBase := time.Date(targetGroup.StartDate.Year(), targetGroup.StartDate.Month(), targetGroup.StartDate.Day(), 0, 0, 0, 0, time.UTC)
+	
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if loc == nil {
+		loc = time.Local
+	}
+
+	minTimeLoc := minTime.In(loc)
+	minDay := time.Date(minTimeLoc.Year(), minTimeLoc.Month(), minTimeLoc.Day(), 0, 0, 0, 0, loc)
+
+	maxTimeLoc := maxTime.In(loc)
+	maxDay := time.Date(maxTimeLoc.Year(), maxTimeLoc.Month(), maxTimeLoc.Day(), 0, 0, 0, 0, loc)
+	
+	importedDurationDays := int(maxDay.Sub(minDay).Hours()/24) + 1
+
+	targetStartLoc := targetGroup.StartDate.In(loc)
+	targetBase := time.Date(targetStartLoc.Year(), targetStartLoc.Month(), targetStartLoc.Day(), 0, 0, 0, 0, loc)
+
+	targetEndLoc := targetGroup.EndDate.In(loc)
+	targetEndBase := time.Date(targetEndLoc.Year(), targetEndLoc.Month(), targetEndLoc.Day(), 0, 0, 0, 0, loc)
+	
+	targetDurationDays := int(targetEndBase.Sub(targetBase).Hours()/24) + 1
+
+	if importedDurationDays > targetDurationDays {
+		return 0, errors.New("exceeds_duration")
+	}
 
 	// Build new activities for target group with remapped times
 	newActivities := make([]models.Activity, 0, len(sourceActivities))
 	for _, src := range sourceActivities {
-		offsetStart := src.StartTime.UTC().Sub(minDay)
-		offsetEnd := src.EndTime.UTC().Sub(minDay)
+		offsetStart := src.StartTime.In(loc).Sub(minDay)
+		offsetEnd := src.EndTime.In(loc).Sub(minDay)
 		newActivities = append(newActivities, models.Activity{
 			GroupID:       uint(targetGroupID),
 			Name:          src.Name,
@@ -306,6 +331,11 @@ func (u *activityUseCaseImpl) ImportActivities(ctx context.Context, targetGroupI
 			Status:        models.StatusPending,
 			IsAIGenerated: false,
 		})
+	}
+
+	// Xoá toàn bộ lịch trình cũ trước khi import lịch mới
+	if err := u.repo.DeleteAllActivities(ctx, uint(targetGroupID)); err != nil {
+		return 0, err
 	}
 
 	if err := u.repo.BulkCreateActivities(ctx, newActivities); err != nil {
@@ -334,22 +364,47 @@ func (u *activityUseCaseImpl) ImportFromJSON(ctx context.Context, targetGroupID 
 		return 0, nil
 	}
 
-	// Find the earliest start_time in JSON items to use as base for remapping
+	// Find the earliest and latest time in JSON items to use as base for remapping
 	minTime := items[0].StartTime
+	maxTime := items[0].EndTime
 	for _, item := range items {
 		if item.StartTime.Before(minTime) {
 			minTime = item.StartTime
 		}
+		if item.EndTime.After(maxTime) {
+			maxTime = item.EndTime
+		}
 	}
-	// Convert to UTC then normalize to start of day — ensures consistent offset calculation
-	minTimeUTC := minTime.UTC()
-	minDay := time.Date(minTimeUTC.Year(), minTimeUTC.Month(), minTimeUTC.Day(), 0, 0, 0, 0, time.UTC)
-	targetBase := time.Date(targetGroup.StartDate.Year(), targetGroup.StartDate.Month(), targetGroup.StartDate.Day(), 0, 0, 0, 0, time.UTC)
+	
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if loc == nil {
+		loc = time.Local
+	}
+
+	minTimeLoc := minTime.In(loc)
+	minDay := time.Date(minTimeLoc.Year(), minTimeLoc.Month(), minTimeLoc.Day(), 0, 0, 0, 0, loc)
+
+	maxTimeLoc := maxTime.In(loc)
+	maxDay := time.Date(maxTimeLoc.Year(), maxTimeLoc.Month(), maxTimeLoc.Day(), 0, 0, 0, 0, loc)
+
+	importedDurationDays := int(maxDay.Sub(minDay).Hours()/24) + 1
+
+	targetStartLoc := targetGroup.StartDate.In(loc)
+	targetBase := time.Date(targetStartLoc.Year(), targetStartLoc.Month(), targetStartLoc.Day(), 0, 0, 0, 0, loc)
+
+	targetEndLoc := targetGroup.EndDate.In(loc)
+	targetEndBase := time.Date(targetEndLoc.Year(), targetEndLoc.Month(), targetEndLoc.Day(), 0, 0, 0, 0, loc)
+
+	targetDurationDays := int(targetEndBase.Sub(targetBase).Hours()/24) + 1
+
+	if importedDurationDays > targetDurationDays {
+		return 0, errors.New("exceeds_duration")
+	}
 
 	newActivities := make([]models.Activity, 0, len(items))
 	for _, item := range items {
-		offsetStart := item.StartTime.UTC().Sub(minDay)
-		offsetEnd := item.EndTime.UTC().Sub(minDay)
+		offsetStart := item.StartTime.In(loc).Sub(minDay)
+		offsetEnd := item.EndTime.In(loc).Sub(minDay)
 		newActivities = append(newActivities, models.Activity{
 			GroupID:       uint(targetGroupID),
 			Name:          item.Name,
@@ -365,6 +420,11 @@ func (u *activityUseCaseImpl) ImportFromJSON(ctx context.Context, targetGroupID 
 			Status:        models.StatusPending,
 			IsAIGenerated: false,
 		})
+	}
+
+	// Xoá toàn bộ lịch trình cũ trước khi import lịch mới
+	if err := u.repo.DeleteAllActivities(ctx, uint(targetGroupID)); err != nil {
+		return 0, err
 	}
 
 	if err := u.repo.BulkCreateActivities(ctx, newActivities); err != nil {

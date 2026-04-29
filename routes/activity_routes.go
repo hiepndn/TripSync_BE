@@ -40,7 +40,7 @@ func ActivityRoutes(r *gin.Engine) {
 				groupRoutes.POST("/activities/:activity_id/rate", activityController.RateActivity)
 				groupRoutes.GET("/activities/suggestions", activityController.GetSuggestions)
 				groupRoutes.POST("/import", activityController.ImportActivities)
-				groupRoutes.POST("/import-json", activityController.ImportFromJSON)
+				groupRoutes.POST("/import-excel", activityController.ImportFromExcel)
 			}
 		}
 	}

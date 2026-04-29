@@ -1,12 +1,16 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 	"tripsync-backend/dto"
 	"tripsync-backend/usecase"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 )
 
 type ActivityController struct {
@@ -319,12 +323,65 @@ func (c *ActivityController) ExportActivities(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": "success",
-		"data": gin.H{
-			"activities": items,
-		},
+	f := excelize.NewFile()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	sheetName := "Sheet1"
+	headers := []string{"STT", "Tên hoạt động", "Loại", "Địa điểm", "Ngày", "Giờ bắt đầu", "Giờ kết thúc", "Chi phí ước tính", "Tiền tệ", "Trạng thái", "Mô tả", "Lat", "Lng"}
+	
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"3E7336"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 	})
+	
+	for i, header := range headers {
+		colName, _ := excelize.ColumnNumberToName(i + 1)
+		cell := colName + "1"
+		f.SetCellValue(sheetName, cell, header)
+		f.SetCellStyle(sheetName, cell, cell, headerStyle)
+	}
+	
+	// Hide Lat, Lng
+	f.SetColVisible(sheetName, "L", false)
+	f.SetColVisible(sheetName, "M", false)
+
+	for i, item := range items {
+		row := i + 2
+		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), i+1)
+		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), item.Name)
+		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), item.Type)
+		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), item.Location)
+		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), item.StartTime.Format("02/01/2006"))
+		f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), item.StartTime.Format("15:04"))
+		f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), item.EndTime.Format("15:04"))
+		f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), item.EstimatedCost)
+		f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), item.Currency)
+		f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), "Đề xuất")
+		f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), item.Description)
+		f.SetCellValue(sheetName, fmt.Sprintf("L%d", row), item.Lat)
+		f.SetCellValue(sheetName, fmt.Sprintf("M%d", row), item.Lng)
+	}
+
+	f.SetColWidth(sheetName, "A", "A", 5)
+	f.SetColWidth(sheetName, "B", "B", 30)
+	f.SetColWidth(sheetName, "C", "C", 15)
+	f.SetColWidth(sheetName, "D", "D", 25)
+	f.SetColWidth(sheetName, "E", "G", 15)
+	f.SetColWidth(sheetName, "H", "H", 15)
+	f.SetColWidth(sheetName, "I", "J", 10)
+	f.SetColWidth(sheetName, "K", "K", 40)
+
+	ctx.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	ctx.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="group_%d_itinerary.xlsx"`, groupID))
+	
+	if err := f.Write(ctx.Writer); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi khi ghi file excel"})
+	}
 }
 
 // ImportActivities handles POST /api/groups/:id/import (protected, auth required).
@@ -361,6 +418,8 @@ func (c *ActivityController) ImportActivities(ctx *gin.Context) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": "Bạn không phải thành viên của nhóm nguồn"})
 		case "target_group_not_found":
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "Nhóm đích không tồn tại"})
+		case "exceeds_duration":
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Lịch trình import vượt quá số ngày của chuyến đi hiện tại"})
 		default:
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
 		}
@@ -373,9 +432,8 @@ func (c *ActivityController) ImportActivities(ctx *gin.Context) {
 	})
 }
 
-// ImportFromJSON handles POST /api/groups/:id/import-json (protected).
-// Accepts a JSON body with an "activities" array (same format as export output).
-func (c *ActivityController) ImportFromJSON(ctx *gin.Context) {
+// ImportFromExcel handles POST /api/groups/:id/import-excel (protected).
+func (c *ActivityController) ImportFromExcel(ctx *gin.Context) {
 	groupIDStr := ctx.Param("id")
 	targetGroupID, err := strconv.Atoi(groupIDStr)
 	if err != nil {
@@ -390,19 +448,123 @@ func (c *ActivityController) ImportFromJSON(ctx *gin.Context) {
 	}
 	userID := int(userIDVal.(float64))
 
-	var req dto.ImportFromJSONReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Dữ liệu không hợp lệ: " + err.Error()})
+	file, _, err := ctx.Request.FormFile("file")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Không tìm thấy file upload"})
+		return
+	}
+	defer file.Close()
+
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "File không đúng định dạng Excel"})
+		return
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	sheetName := f.GetSheetName(0) // Lấy sheet đầu tiên
+	rows, err := f.GetRows(sheetName)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Không thể đọc dữ liệu từ sheet"})
 		return
 	}
 
-	count, err := c.useCase.ImportFromJSON(ctx.Request.Context(), targetGroupID, userID, req.Activities)
+	var activities []dto.ExportActivityItem
+	for i, row := range rows {
+		if i == 0 {
+			continue // Bỏ qua dòng header
+		}
+		
+		getCol := func(index int) string {
+			if index < len(row) {
+				return row[index]
+			}
+			return ""
+		}
+
+		name := getCol(1)
+		if name == "" {
+			continue // Bỏ qua nếu tên hoạt động trống
+		}
+
+		activityType := getCol(2)
+		location := getCol(3)
+		dateStr := getCol(4)      // DD/MM/YYYY
+		startTimeStr := getCol(5) // HH:mm hoac giong vay
+		endTimeStr := getCol(6)   // HH:mm
+		costStr := getCol(7)
+		currency := getCol(8)
+		desc := getCol(10)
+		latStr := getCol(11)
+		lngStr := getCol(12)
+
+		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+		if loc == nil {
+			loc = time.Local
+		}
+		
+		date, err := time.ParseInLocation("02/01/2006", dateStr, loc)
+		if err != nil {
+			continue
+		}
+		
+		formatTime := func(t string) string {
+			parts := strings.Split(t, ":")
+			if len(parts) >= 2 {
+				return parts[0] + ":" + parts[1]
+			}
+			return t
+		}
+		
+		startTimeStr = formatTime(startTimeStr)
+		endTimeStr = formatTime(endTimeStr)
+
+		startTime, err := time.ParseInLocation("15:04", startTimeStr, loc)
+		if err != nil {
+			continue
+		}
+		startDateTime := time.Date(date.Year(), date.Month(), date.Day(), startTime.Hour(), startTime.Minute(), 0, 0, loc)
+		
+		endTime, err := time.ParseInLocation("15:04", endTimeStr, loc)
+		if err != nil {
+			continue
+		}
+		endDateTime := time.Date(date.Year(), date.Month(), date.Day(), endTime.Hour(), endTime.Minute(), 0, 0, loc)
+		if endDateTime.Before(startDateTime) {
+			endDateTime = endDateTime.AddDate(0, 0, 1)
+		}
+
+		cost, _ := strconv.ParseFloat(costStr, 64)
+		lat, _ := strconv.ParseFloat(latStr, 64)
+		lng, _ := strconv.ParseFloat(lngStr, 64)
+
+		activities = append(activities, dto.ExportActivityItem{
+			Name:          name,
+			Type:          activityType,
+			Location:      location,
+			Description:   desc,
+			StartTime:     startDateTime,
+			EndTime:       endDateTime,
+			EstimatedCost: cost,
+			Currency:      currency,
+			Lat:           lat,
+			Lng:           lng,
+		})
+	}
+
+	count, err := c.useCase.ImportFromJSON(ctx.Request.Context(), targetGroupID, userID, activities)
 	if err != nil {
 		switch err.Error() {
 		case "not_admin_of_target":
 			ctx.JSON(http.StatusForbidden, gin.H{"error": "Bạn không phải Admin của nhóm đích"})
 		case "target_group_not_found":
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "Nhóm đích không tồn tại"})
+		case "exceeds_duration":
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Lịch trình import vượt quá số ngày của chuyến đi hiện tại"})
 		default:
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi hệ thống: " + err.Error()})
 		}
